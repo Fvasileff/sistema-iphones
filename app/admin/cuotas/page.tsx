@@ -2,115 +2,467 @@
 
 import { useState, useEffect } from 'react'
 
-interface Reporte {
-  totalCobradoMes: number
-  totalDeudaVencida: number
-  cantVentasMes: number
-  cuotasVencidas: any[]
-  cuotasProximas: any[]
-  ventasDelMes: any[]
+type Cliente = { nombre: string; apellido: string }
+type Venta = { cliente: Cliente }
+type Cuota = {
+  id: number
+  estado: 'pendiente' | 'pagada' | 'mora'
+  montoOriginal: number
+  montoMora?: number
+  fechaVencimiento: string
+  venta: Venta
 }
 
-export default function ReportesPage() {
-  const hoy = new Date()
-  const [mes, setMes] = useState(hoy.getMonth() + 1)
-  const [anio, setAnio] = useState(hoy.getFullYear())
-  const [datos, setDatos] = useState<Reporte | null>(null)
-  const [cargando, setCargando] = useState(true)
+type ClienteGroup = {
+  key: string
+  nombre: string
+  apellido: string
+  cuotas: Cuota[]
+}
 
-  const cargar = async () => {
-    setCargando(true)
-    const res = await fetch(`/api/reportes?mes=${mes}&anio=${anio}`)
-    if (res.ok) setDatos(await res.json())
-    setCargando(false)
-  }
+function initials(nombre: string, apellido: string) {
+  return ((apellido?.[0] ?? '') + (nombre?.[0] ?? '')).toUpperCase()
+}
 
-  useEffect(() => { cargar() }, [mes, anio])
+function fmt(n: number) {
+  return Number(n).toLocaleString('es-AR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })
+}
 
-  const meses = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
+function formatFecha(str: string): string {
+  if (!str) return '—'
+  const match = str.match(/^(\d{4})-(\d{2})-(\d{2})/)
+  if (!match) return '—'
+  const d = new Date(parseInt(match[1]), parseInt(match[2]) - 1, parseInt(match[3]))
+  if (isNaN(d.getTime())) return '—'
+  return d.toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' })
+}
+
+const FILTROS = [
+  { key: 'todas',      label: 'Todas' },
+  { key: 'pendientes', label: 'Pendientes' },
+  { key: 'pagadas',    label: 'Pagadas' },
+  { key: 'mora',       label: 'En mora' },
+] as const
+
+type FiltroKey = (typeof FILTROS)[number]['key']
+
+const FILTER_ACTIVE: Record<FiltroKey, string> = {
+  todas:      'bg-blue-600 text-white border-blue-600',
+  pendientes: 'bg-amber-500 text-white border-amber-500',
+  pagadas:    'bg-green-600 text-white border-green-600',
+  mora:       'bg-red-600 text-white border-red-600',
+}
+
+function EstadoPill({ estado }: { estado: Cuota['estado'] }) {
+  if (estado === 'mora')
+    return (
+      <span className="text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-red-500/10 text-red-400 border border-red-500/25">
+        En mora
+      </span>
+    )
+  if (estado === 'pagada')
+    return (
+      <span className="text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-green-500/10 text-green-400 border border-green-500/25">
+        Pagada
+      </span>
+    )
+  return (
+    <span className="text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/25">
+      Pendiente
+    </span>
+  )
+}
+
+function CuotaRow({
+  c,
+  onMora,
+  onPago,
+}: {
+  c: Cuota
+  onMora: (c: Cuota) => void
+  onPago: (c: Cuota) => void
+}) {
+  const mora   = c.estado === 'mora'
+  const pagada = c.estado === 'pagada'
+  const montoMora = Number(c.montoMora ?? 0)
+  const total     = Number(c.montoOriginal) + montoMora
 
   return (
-    <div className="p-4 md:p-8 max-w-5xl mx-auto">
-      {/* Header Responsivo */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-8 gap-4">
-        <h1 className="text-2xl md:text-3xl font-bold text-white">📊 Reportes</h1>
-        <div className="flex gap-2">
-          <select value={mes} onChange={e => setMes(parseInt(e.target.value))}
-            className="flex-1 p-2.5 rounded-xl bg-zinc-900 border border-zinc-800 text-white text-sm outline-none">
-            {meses.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
-          </select>
-          <select value={anio} onChange={e => setAnio(parseInt(e.target.value))}
-            className="w-24 p-2.5 rounded-xl bg-zinc-900 border border-zinc-800 text-white text-sm outline-none">
-            {[2024, 2025, 2026].map(a => <option key={a} value={a}>{a}</option>)}
-          </select>
+    <div
+      className={`rounded-xl p-3 border transition ${
+        mora
+          ? 'bg-red-500/5 border-red-500/20'
+          : pagada
+          ? 'bg-zinc-800/50 border-zinc-700/50 opacity-70'
+          : 'bg-zinc-800/60 border-zinc-700/60'
+      }`}
+    >
+      {/* En mobile: stack vertical. En sm+: fila horizontal */}
+      <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+
+        {/* Fecha + estado */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className="text-zinc-300 text-xs">
+              Vence{' '}
+              <span className="text-zinc-200 font-medium">{formatFecha(c.fechaVencimiento)}</span>
+            </p>
+            <EstadoPill estado={c.estado} />
+          </div>
+          {montoMora > 0 && (
+            <p className="text-red-400 text-[11px] mt-0.5">Mora: +${fmt(montoMora)}</p>
+          )}
+        </div>
+
+        {/* Monto + acciones en la misma fila (mobile) */}
+        <div className="flex items-center justify-between sm:justify-end gap-3">
+          <div className="text-right shrink-0">
+            <p className={`text-sm font-bold tabular-nums ${mora ? 'text-red-400' : pagada ? 'text-green-400' : 'text-white'}`}>
+              ${fmt(total)}
+            </p>
+            {montoMora > 0 && (
+              <p className="text-zinc-600 text-[10px] line-through tabular-nums">
+                ${fmt(Number(c.montoOriginal))}
+              </p>
+            )}
+          </div>
+
+          {!pagada && (
+            <div className="flex gap-1.5 shrink-0">
+              <button
+                onClick={() => onMora(c)}
+                className="bg-zinc-700 hover:bg-red-600/20 border border-zinc-600 hover:border-red-500/40 text-zinc-400 hover:text-red-400 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition whitespace-nowrap"
+              >
+                + Mora
+              </button>
+              <button
+                onClick={() => onPago(c)}
+                className="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded-lg text-[11px] font-semibold transition whitespace-nowrap"
+              >
+                Pagar
+              </button>
+            </div>
+          )}
+          {pagada && (
+            <span className="text-green-500 text-[11px] font-semibold shrink-0 whitespace-nowrap">✓ Cobrada</span>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function ClienteCard({
+  group,
+  onMora,
+  onPago,
+}: {
+  group: ClienteGroup
+  onMora: (c: Cuota) => void
+  onPago: (c: Cuota) => void
+}) {
+  const [abierto, setAbierto] = useState(true)
+
+  const tieneMora    = group.cuotas.some(c => c.estado === 'mora')
+  const todasPagadas = group.cuotas.every(c => c.estado === 'pagada')
+
+  const totalPendiente = group.cuotas
+    .filter(c => c.estado !== 'pagada')
+    .reduce((acc, c) => acc + Number(c.montoOriginal) + Number(c.montoMora ?? 0), 0)
+
+  const ini = initials(group.nombre, group.apellido)
+
+  const avatarColor = tieneMora
+    ? 'bg-red-500/15 text-red-400'
+    : todasPagadas
+    ? 'bg-green-500/15 text-green-400'
+    : 'bg-blue-500/15 text-blue-400'
+
+  const borderColor = tieneMora
+    ? 'border-red-500/25'
+    : todasPagadas
+    ? 'border-green-500/15'
+    : 'border-zinc-800'
+
+  return (
+    <div className={`bg-zinc-900 rounded-2xl border transition ${borderColor}`}>
+      <button
+        onClick={() => setAbierto(v => !v)}
+        className="w-full flex items-center gap-3 p-4 text-left"
+      >
+        <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-semibold shrink-0 ${avatarColor}`}>
+          {ini}
+        </div>
+
+        <div className="flex-1 min-w-0">
+          <p className="text-white font-semibold text-sm">
+            {group.apellido}, {group.nombre}
+          </p>
+          <p className="text-zinc-500 text-xs mt-0.5">
+            {group.cuotas.length} cuota{group.cuotas.length !== 1 ? 's' : ''}
+            {tieneMora    && <span className="text-red-400 ml-2">• con mora</span>}
+            {todasPagadas && <span className="text-green-400 ml-2">• al día</span>}
+          </p>
+        </div>
+
+        {!todasPagadas && totalPendiente > 0 && (
+          <div className="text-right shrink-0 mr-2">
+            <p className="text-xs text-zinc-500">Pendiente</p>
+            <p className={`text-sm font-bold tabular-nums ${tieneMora ? 'text-red-400' : 'text-white'}`}>
+              ${fmt(totalPendiente)}
+            </p>
+          </div>
+        )}
+
+        <span
+          className={`text-zinc-500 transition-transform duration-200 shrink-0 ${abierto ? 'rotate-180' : ''}`}
+          aria-hidden
+        >
+          ▾
+        </span>
+      </button>
+
+      {abierto && (
+        <div className="px-3 sm:px-4 pb-4 space-y-2">
+          <div className="border-t border-zinc-800 mb-3" />
+          {group.cuotas.map(c => (
+            <CuotaRow key={c.id} c={c} onMora={onMora} onPago={onPago} />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ModalMora({
+  cuota,
+  onClose,
+  onConfirm,
+}: {
+  cuota: Cuota
+  onClose: () => void
+  onConfirm: (pct: number) => Promise<void>
+}) {
+  const [pct, setPct] = useState('10')
+  const [loading, setLoading] = useState(false)
+  const pctNum = parseFloat(pct)
+  const montoOriginal = Number(cuota.montoOriginal)
+  const preview = !isNaN(pctNum) && pctNum > 0 ? montoOriginal * (1 + pctNum / 100) : null
+
+  const handleConfirm = async () => {
+    if (isNaN(pctNum) || pctNum <= 0 || pctNum > 100)
+      return alert('Ingresá un porcentaje válido entre 1 y 100')
+    setLoading(true)
+    await onConfirm(pctNum)
+    setLoading(false)
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/65 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+      <div className="bg-zinc-900 border border-zinc-700 rounded-t-2xl sm:rounded-2xl p-6 w-full sm:max-w-sm shadow-2xl">
+        <h2 className="text-white font-bold text-base mb-0.5">Aplicar mora</h2>
+        <p className="text-zinc-400 text-sm mb-5">
+          {cuota.venta.cliente.apellido}, {cuota.venta.cliente.nombre}
+          <span className="block text-zinc-600 text-xs mt-0.5">Monto actual: ${fmt(montoOriginal)}</span>
+        </p>
+        <label className="text-zinc-400 text-xs block mb-1.5">Porcentaje de mora (%)</label>
+        <input
+          type="number"
+          min="1"
+          max="100"
+          value={pct}
+          onChange={e => setPct(e.target.value)}
+          className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500 mb-2"
+          placeholder="Ej: 10"
+          autoFocus
+        />
+        {preview !== null && (
+          <p className="text-zinc-500 text-xs mb-5">
+            Nuevo total: <span className="text-red-400 font-bold">${fmt(preview)}</span>
+          </p>
+        )}
+        <div className="flex gap-3 mt-2">
+          <button onClick={onClose} className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 py-3 rounded-xl text-sm transition">
+            Cancelar
+          </button>
+          <button onClick={handleConfirm} disabled={loading} className="flex-1 bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white py-3 rounded-xl text-sm font-bold transition">
+            {loading ? 'Aplicando...' : 'Aplicar mora'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function ModalPago({
+  cuota,
+  onClose,
+  onConfirm,
+}: {
+  cuota: Cuota
+  onClose: () => void
+  onConfirm: () => Promise<void>
+}) {
+  const [loading, setLoading] = useState(false)
+  const montoOriginal = Number(cuota.montoOriginal)
+  const montoMora     = Number(cuota.montoMora ?? 0)
+  const total         = montoOriginal + montoMora
+
+  const handleConfirm = async () => {
+    setLoading(true)
+    await onConfirm()
+    setLoading(false)
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/65 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+      <div className="bg-zinc-900 border border-zinc-700 rounded-t-2xl sm:rounded-2xl p-6 w-full sm:max-w-sm shadow-2xl">
+        <h2 className="text-white font-bold text-base mb-0.5">Confirmar pago</h2>
+        <p className="text-zinc-400 text-sm mb-5">
+          {cuota.venta.cliente.apellido}, {cuota.venta.cliente.nombre}
+        </p>
+        <div className="bg-zinc-800 rounded-xl p-4 mb-5 space-y-2">
+          <div className="flex justify-between text-sm">
+            <span className="text-zinc-400">Monto original</span>
+            <span className="text-white tabular-nums">${fmt(montoOriginal)}</span>
+          </div>
+          {montoMora > 0 && (
+            <div className="flex justify-between text-sm">
+              <span className="text-zinc-400">Mora</span>
+              <span className="text-red-400 tabular-nums">+${fmt(montoMora)}</span>
+            </div>
+          )}
+          <div className="flex justify-between text-sm font-bold border-t border-zinc-700 pt-2 mt-1">
+            <span className="text-zinc-300">Total a cobrar</span>
+            <span className="text-white text-base tabular-nums">${fmt(total)}</span>
+          </div>
+        </div>
+        <div className="flex gap-3">
+          <button onClick={onClose} className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 py-3 rounded-xl text-sm transition">
+            Cancelar
+          </button>
+          <button onClick={handleConfirm} disabled={loading} className="flex-1 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white py-3 rounded-xl text-sm font-bold transition">
+            {loading ? 'Registrando...' : '✓ Confirmar pago'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function agruparPorCliente(cuotas: Cuota[]): ClienteGroup[] {
+  const map = new Map<string, ClienteGroup>()
+  for (const c of cuotas) {
+    const { nombre, apellido } = c.venta.cliente
+    const key = `${apellido}||${nombre}`.toLowerCase()
+    if (!map.has(key)) map.set(key, { key, nombre, apellido, cuotas: [] })
+    map.get(key)!.cuotas.push(c)
+  }
+  return Array.from(map.values())
+}
+
+export default function CuotasPage() {
+  const [cuotas, setCuotas]     = useState<Cuota[]>([])
+  const [cargando, setCargando] = useState(true)
+  const [filtro, setFiltro]     = useState<FiltroKey>('todas')
+  const [cuotaMora, setCuotaMora] = useState<Cuota | null>(null)
+  const [cuotaPago, setCuotaPago] = useState<Cuota | null>(null)
+
+  useEffect(() => { cargarCuotas() }, [])
+
+  const cargarCuotas = () => {
+    setCargando(true)
+    fetch('/api/cuotas')
+      .then(r => r.json())
+      .then((data: Cuota[]) => { setCuotas(data); setCargando(false) })
+      .catch(() => setCargando(false))
+  }
+
+  const cuotasFiltradas = cuotas.filter(c => {
+    if (filtro === 'pendientes') return c.estado === 'pendiente'
+    if (filtro === 'pagadas')    return c.estado === 'pagada'
+    if (filtro === 'mora')       return c.estado === 'mora'
+    return true
+  })
+
+  const grupos = agruparPorCliente(cuotasFiltradas)
+
+  const conteos: Record<FiltroKey, number> = {
+    todas:      cuotas.length,
+    pendientes: cuotas.filter(c => c.estado === 'pendiente').length,
+    pagadas:    cuotas.filter(c => c.estado === 'pagada').length,
+    mora:       cuotas.filter(c => c.estado === 'mora').length,
+  }
+
+  const handleMora = async (pct: number) => {
+    if (!cuotaMora) return
+    const res = await fetch(`/api/cuotas/${cuotaMora.id}/mora`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ porcentaje: pct }),
+    })
+    if (res.ok) { setCuotaMora(null); cargarCuotas() }
+    else alert('Error al aplicar mora')
+  }
+
+  const handlePago = async () => {
+    if (!cuotaPago) return
+    const res = await fetch(`/api/cuotas/${cuotaPago.id}/pagar`, { method: 'POST' })
+    if (res.ok) { setCuotaPago(null); cargarCuotas() }
+    else alert('Error al registrar el pago')
+  }
+
+  return (
+    <div className="p-4 sm:p-6 lg:p-8 max-w-2xl mx-auto">
+      <h1 className="text-xl sm:text-2xl font-bold text-white mb-6 flex items-center gap-2">
+        📅 Gestión de cuotas
+      </h1>
+
+      {/* Filtros deslizables */}
+      <div className="relative -mx-4 px-4 sm:mx-0 sm:px-0 mb-6">
+        <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide snap-x">
+          {FILTROS.map(f => (
+            <button
+              key={f.key}
+              onClick={() => setFiltro(f.key)}
+              className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-semibold border transition shrink-0 snap-start ${
+                filtro === f.key
+                  ? FILTER_ACTIVE[f.key]
+                  : 'bg-zinc-900 text-zinc-400 border-zinc-800 hover:border-zinc-600'
+              }`}
+            >
+              {f.label}
+              <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${
+                filtro === f.key ? 'bg-white/20 text-white' : 'bg-zinc-800 text-zinc-500'
+              }`}>
+                {conteos[f.key]}
+              </span>
+            </button>
+          ))}
         </div>
       </div>
 
-      {cargando || !datos ? (
-        <p className="text-zinc-500 text-center py-20">Analizando datos...</p>
+      {/* Lista */}
+      {cargando ? (
+        <p className="text-zinc-500 text-center py-20 text-sm">Cargando...</p>
+      ) : grupos.length === 0 ? (
+        <p className="text-zinc-600 text-center py-20 text-sm">No hay cuotas en esta categoría</p>
       ) : (
-        <div className="space-y-6">
-          {/* Tarjetas de Resumen */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6">
-              <p className="text-zinc-500 text-xs font-bold uppercase tracking-wider mb-2">Cobrado en {meses[mes-1]}</p>
-              <p className="text-3xl font-bold text-green-400">${datos.totalCobradoMes.toLocaleString('es-AR')}</p>
-            </div>
-            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6">
-              <p className="text-zinc-500 text-xs font-bold uppercase tracking-wider mb-2">Deuda Vencida</p>
-              <p className="text-3xl font-bold text-red-400">${datos.totalDeudaVencida.toLocaleString('es-AR')}</p>
-            </div>
-            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6">
-              <p className="text-zinc-500 text-xs font-bold uppercase tracking-wider mb-2">Ventas del mes</p>
-              <p className="text-3xl font-bold text-white">{datos.cantVentasMes}</p>
-            </div>
-          </div>
-
-          {/* Listas de Detalles (Tarjetas) */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Cuotas Vencidas */}
-            <div className="bg-zinc-900 border border-red-500/20 rounded-2xl p-6">
-              <h2 className="text-red-400 font-bold mb-4">🔴 Vencidas ({datos.cuotasVencidas.length})</h2>
-              <div className="space-y-3">
-                {datos.cuotasVencidas.map((c: any) => (
-                  <div key={c.id} className="flex justify-between items-center text-sm bg-zinc-950 p-3 rounded-lg">
-                    <span className="text-white font-medium">{c.venta.cliente.apellido}</span>
-                    <span className="text-red-400 font-bold">${(Number(c.montoOriginal) + Number(c.montoMora)).toFixed(2)}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Cuotas Próximas */}
-            <div className="bg-zinc-900 border border-yellow-500/20 rounded-2xl p-6">
-              <h2 className="text-yellow-400 font-bold mb-4">⏰ Próximas ({datos.cuotasProximas.length})</h2>
-              <div className="space-y-3">
-                {datos.cuotasProximas.map((c: any) => (
-                  <div key={c.id} className="flex justify-between items-center text-sm bg-zinc-950 p-3 rounded-lg">
-                    <span className="text-white font-medium">{c.venta.cliente.apellido}</span>
-                    <span className="text-yellow-400 font-bold">${Number(c.montoOriginal).toFixed(2)}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Tabla de Ventas (Diseño responsivo mejorado) */}
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6">
-            <h2 className="text-white font-bold mb-4">📋 Detalle de Ventas</h2>
-            <div className="space-y-3">
-              {datos.ventasDelMes.map((v: any) => (
-                <div key={v.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-zinc-950 rounded-xl gap-2">
-                  <div className="flex flex-col">
-                    <span className="text-white font-bold">{v.cliente.apellido}, {v.cliente.nombre}</span>
-                    <span className="text-zinc-500 text-xs">{v.iphone.modelo}</span>
-                  </div>
-                  <span className="text-white font-bold">$ {Number(v.precioVenta).toFixed(2)}</span>
-                </div>
-              ))}
-            </div>
-          </div>
+        <div className="space-y-3">
+          {grupos.map(g => (
+            <ClienteCard key={g.key} group={g} onMora={setCuotaMora} onPago={setCuotaPago} />
+          ))}
         </div>
+      )}
+
+      {cuotaMora && (
+        <ModalMora cuota={cuotaMora} onClose={() => setCuotaMora(null)} onConfirm={handleMora} />
+      )}
+      {cuotaPago && (
+        <ModalPago cuota={cuotaPago} onClose={() => setCuotaPago(null)} onConfirm={handlePago} />
       )}
     </div>
   )

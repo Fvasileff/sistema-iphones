@@ -18,7 +18,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
     const cuota = await prisma.cuota.update({
       where: { id },
-      data: { montoMora, estado: 'vencida' }
+      data: { montoMora, estado: 'mora' }
     })
     return NextResponse.json(cuota)
   } catch (error) {
