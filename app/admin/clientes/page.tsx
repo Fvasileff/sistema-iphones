@@ -46,15 +46,25 @@ export default function ClientesPage() {
     )
   })
 
+  const normalizarTelefono = (tel: string): string => {
+    let t = tel.trim().replace(/\s+/g, '').replace(/-/g, '')
+    if (t.startsWith('+549')) return t
+    if (t.startsWith('+54')) return t.replace('+54', '+549')
+    if (t.startsWith('549')) return '+' + t
+    if (t.startsWith('0')) return '+549' + t.slice(1)
+    return '+549' + t
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setCargando(true)
     setMensaje({ texto: '', tipo: '' })
     try {
+      const telefonoNormalizado = normalizarTelefono(telefono)
       const res = await fetch('/api/clientes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nombre, apellido, dni, telefono, email, direccion }),
+        body: JSON.stringify({ nombre, apellido, dni, telefono: telefonoNormalizado, email, direccion }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Error al guardar')
@@ -115,8 +125,9 @@ export default function ClientesPage() {
                 className="w-full p-2.5 border rounded-lg bg-transparent border-zinc-700 text-white focus:outline-none focus:border-blue-500" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-zinc-400 mb-1">Teléfono *</label>
+              <label className="block text-sm font-medium text-zinc-400 mb-1">Teléfono * (ej: 3815131873)</label>
               <input type="text" value={telefono} onChange={e => setTelefono(e.target.value)} required
+                placeholder="3815131873"
                 className="w-full p-2.5 border rounded-lg bg-transparent border-zinc-700 text-white focus:outline-none focus:border-blue-500" />
             </div>
             <div>

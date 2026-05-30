@@ -4,8 +4,8 @@ import { prisma } from '@/lib/prisma'
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params
-    const { pctMora } = await req.json()
-    if (!pctMora || isNaN(parseFloat(pctMora))) {
+    const { porcentaje } = await req.json()
+    if (!porcentaje || isNaN(Number(porcentaje))) {
       return NextResponse.json({ error: 'Porcentaje de mora inválido' }, { status: 400 })
     }
 
@@ -14,7 +14,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       return NextResponse.json({ error: 'Cuota no encontrada' }, { status: 404 })
     }
 
-    const montoMora = Number(cuotaActual.montoOriginal) * (parseFloat(pctMora) / 100)
+    const montoMora = Number(cuotaActual.montoOriginal) * (Number(porcentaje) / 100)
 
     const cuota = await prisma.cuota.update({
       where: { id },

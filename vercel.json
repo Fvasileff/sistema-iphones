@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/recordatorios?token=zapatillas.nike1999 ",
+      "schedule": "0 9 * * *"
+    }
+  ]
+}

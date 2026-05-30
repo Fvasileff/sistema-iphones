@@ -1,7 +1,8 @@
-// app/api/ventas/route.ts
+
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { auth } from '@/lib/auth';
+import { whatsappNuevaFinanciacion } from '@/utils/whatsapp';
 
 export async function POST(request: Request) {
   try {
@@ -71,6 +72,25 @@ export async function POST(request: Request) {
 
       return nuevaVenta;
     });
+
+    // 4. Mandar WhatsApp de bienvenida (fuera de la transacción)
+    try {
+      const cliente = await prisma.cliente.findUnique({ where: { id: clienteId } });
+      const iphone = await prisma.iPhone.findUnique({ where: { id: iphoneId } });
+
+      if (cliente && iphone) {
+        await whatsappNuevaFinanciacion(
+          cliente.telefono,
+          `${cliente.nombre} ${cliente.apellido}`,
+          `${iphone.modelo} ${iphone.almacenamiento}`,
+          parseInt(totalCuotas),
+          parseFloat(montoCuota)
+        )
+      }
+    } catch (wpError) {
+      console.error('Error enviando WhatsApp de bienvenida:', wpError)
+      // No cortamos la respuesta, la venta ya se registró
+    }
 
     return NextResponse.json(resultado, { status: 201 });
   } catch (error) {

@@ -23,29 +23,25 @@ export async function POST(request: Request) {
     if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
     const body = await request.json()
-    // 1. Agregamos "apellido" acá adentro para recibirlo desde el formulario
     const { nombre, apellido, dni, telefono, email, direccion } = body
 
-    // 2. Lo sumamos a la validación de campos obligatorios
     if (!nombre || !apellido || !dni || !telefono) {
       return NextResponse.json({ error: 'Faltan campos obligatorios' }, { status: 400 })
     }
 
-    // Verificar si el DNI ya existe para no duplicar
     const existe = await prisma.cliente.findUnique({ where: { dni } })
     if (existe) {
       return NextResponse.json({ error: 'El DNI ya está registrado' }, { status: 400 })
     }
 
-    // 3. Se lo pasamos a Prisma en el data
     const nuevoCliente = await prisma.cliente.create({
-      data: { 
-        nombre, 
-        apellido, // ¡Ahora sí! Con esto se va el error en rojo
-        dni, 
-        telefono, 
-        email: email || null, 
-        direccion: direccion || null 
+      data: {
+        nombre,
+        apellido,
+        dni,
+        telefono,
+        email: email ?? null,        // ← cambiado
+        direccion: direccion ?? null,
       }
     })
 

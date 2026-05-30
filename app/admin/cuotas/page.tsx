@@ -11,6 +11,7 @@ type Cuota = {
   montoMora?: number
   fechaVencimiento: string
   venta: Venta
+  numeroCuota?: number // <-- Agregamos la propiedad por si viene de la base de datos
 }
 
 type ClienteGroup = {
@@ -75,13 +76,16 @@ function EstadoPill({ estado }: { estado: Cuota['estado'] }) {
     </span>
   )
 }
-
 function CuotaRow({
   c,
+  index,
+  totalCuotas,
   onMora,
   onPago,
 }: {
   c: Cuota
+  index: number
+  totalCuotas: number
   onMora: (c: Cuota) => void
   onPago: (c: Cuota) => void
 }) {
@@ -90,71 +94,94 @@ function CuotaRow({
   const montoMora = Number(c.montoMora ?? 0)
   const total     = Number(c.montoOriginal) + montoMora
 
+  const nroCuotaActual = c.numeroCuota ?? (index + 1)
+
+  // Borde lateral izquierdo según el estado de la cuota
+  const borderLeftColor = mora
+    ? 'border-l-4 border-l-red-500'
+    : pagada
+    ? 'border-l-4 border-l-green-500'
+    : 'border-l-4 border-l-amber-500'
+
   return (
     <div
-      className={`rounded-xl p-3 border transition ${
-        mora
-          ? 'bg-red-500/5 border-red-500/20'
-          : pagada
-          ? 'bg-zinc-800/50 border-zinc-700/50 opacity-70'
-          : 'bg-zinc-800/60 border-zinc-700/60'
+      className={`rounded-xl p-3 border border-zinc-800/80 bg-zinc-950/40 transition ${borderLeftColor} ${
+        pagada ? 'opacity-65' : ''
       }`}
     >
-      {/* En mobile: stack vertical. En sm+: fila horizontal */}
-      <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
-
-        {/* Fecha + estado */}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <p className="text-zinc-300 text-xs">
-              Vence{' '}
-              <span className="text-zinc-200 font-medium">{formatFecha(c.fechaVencimiento)}</span>
-            </p>
+      {/* Contenedor principal: siempre en fila para mantener Izquierda vs Derecha */}
+      <div className="flex items-center justify-between gap-3 w-full">
+        
+        {/* BLOQUE IZQUIERDO: Estructura vertical apilada */}
+        <div className="flex flex-col gap-1 min-w-0">
+          {/* 1. Número de cuota y Estado */}
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-bold text-zinc-400 bg-zinc-900 border border-zinc-800 px-2 py-0.5 rounded-md shrink-0">
+              Cuota {nroCuotaActual}/{totalCuotas}
+            </span>
             <EstadoPill estado={c.estado} />
           </div>
+          
+          {/* 2. Abajo del número: La fecha de vencimiento (DD/MM/AAAA) */}
+          <p className="text-zinc-400 text-xs pl-0.5">
+            Vence {formatFecha(c.fechaVencimiento)}
+          </p>
+
+          {/* 3. Abajo de la fecha: La mora aplicada (si existe) */}
           {montoMora > 0 && (
-            <p className="text-red-400 text-[11px] mt-0.5">Mora: +${fmt(montoMora)}</p>
+            <p className="text-red-400 text-[11px] font-medium pl-0.5 mt-0.5">
+              ⚠️ Mora aplicada: +${fmt(montoMora)}
+            </p>
           )}
         </div>
 
-        {/* Monto + acciones en la misma fila (mobile) */}
-        <div className="flex items-center justify-between sm:justify-end gap-3">
-          <div className="text-right shrink-0">
+        {/* BLOQUE DERECHO: Montos y Botones alineados a la derecha */}
+        <div className="flex flex-col items-end gap-2 shrink-0">
+          {/* Precios */}
+          <div className="text-right">
             <p className={`text-sm font-bold tabular-nums ${mora ? 'text-red-400' : pagada ? 'text-green-400' : 'text-white'}`}>
               ${fmt(total)}
             </p>
             {montoMora > 0 && (
-              <p className="text-zinc-600 text-[10px] line-through tabular-nums">
+              <p className="text-zinc-600 text-[10px] line-through tabular-nums -mt-0.5">
                 ${fmt(Number(c.montoOriginal))}
               </p>
             )}
           </div>
 
-          {!pagada && (
-            <div className="flex gap-1.5 shrink-0">
-              <button
-                onClick={() => onMora(c)}
-                className="bg-zinc-700 hover:bg-red-600/20 border border-zinc-600 hover:border-red-500/40 text-zinc-400 hover:text-red-400 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition whitespace-nowrap"
-              >
-                + Mora
-              </button>
-              <button
-                onClick={() => onPago(c)}
-                className="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded-lg text-[11px] font-semibold transition whitespace-nowrap"
-              >
-                Pagar
-              </button>
-            </div>
-          )}
-          {pagada && (
-            <span className="text-green-500 text-[11px] font-semibold shrink-0 whitespace-nowrap">✓ Cobrada</span>
-          )}
+          {/* Botones de acción */}
+          <div className="flex items-center gap-1.5">
+            {!pagada && (
+              <>
+                {/* Si ya tiene mora, oculta el botón "+ Mora" para que no se duplique */}
+                {!mora && (
+                  <button
+                    onClick={() => onMora(c)}
+                    className="bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-300 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition"
+                  >
+                    + Mora
+                  </button>
+                )}
+                <button
+                  onClick={() => onPago(c)}
+                  className="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded-lg text-[11px] font-semibold transition shadow-md shadow-blue-600/10"
+                >
+                  Pagar
+                </button>
+              </>
+            )}
+            {pagada && (
+              <span className="text-green-400 bg-green-500/10 border border-green-500/20 px-2.5 py-1 rounded-lg text-[11px] font-semibold flex items-center gap-1">
+                ✓ Cobrada
+              </span>
+            )}
+          </div>
         </div>
+
       </div>
     </div>
   )
 }
-
 function ClienteCard({
   group,
   onMora,
@@ -228,8 +255,16 @@ function ClienteCard({
       {abierto && (
         <div className="px-3 sm:px-4 pb-4 space-y-2">
           <div className="border-t border-zinc-800 mb-3" />
-          {group.cuotas.map(c => (
-            <CuotaRow key={c.id} c={c} onMora={onMora} onPago={onPago} />
+          {/* Mapeamos enviando el index y el total de cuotas de este grupo */}
+          {group.cuotas.map((c, index) => (
+            <CuotaRow 
+              key={c.id} 
+              c={c} 
+              index={index} 
+              totalCuotas={group.cuotas.length} 
+              onMora={onMora} 
+              onPago={onPago} 
+            />
           ))}
         </div>
       )}
@@ -361,7 +396,16 @@ function agruparPorCliente(cuotas: Cuota[]): ClienteGroup[] {
     if (!map.has(key)) map.set(key, { key, nombre, apellido, cuotas: [] })
     map.get(key)!.cuotas.push(c)
   }
-  return Array.from(map.values())
+  
+  const grupos = Array.from(map.values())
+  
+  // Ordenamos las cuotas de cada cliente cronológicamente por fecha de vencimiento
+  // Esto garantiza que el index autocalculado coincida perfectamente con el orden real
+  grupos.forEach(g => {
+    g.cuotas.sort((a, b) => new Date(a.fechaVencimiento).getTime() - new Date(b.fechaVencimiento).getTime())
+  })
+  
+  return grupos
 }
 
 export default function CuotasPage() {

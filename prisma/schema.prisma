@@ -32,7 +32,7 @@ model Cliente {
   apellido  String
   dni       String   @unique
   telefono  String
-  email     String
+  email     String?    
   direccion String?
   createdAt DateTime @default(now())
   
