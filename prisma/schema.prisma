@@ -1,0 +1,86 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Usuario {
+  id         String   @id @default(uuid())
+  nombre     String
+  email      String   @unique
+  password   String
+  rol        String   @default("vendedor")
+  createdAt  DateTime @default(now())
+  ventas     Venta[]
+}
+
+model iPhone {
+  id              String   @id @default(uuid())
+  modelo          String
+  variante        String?  // Lo dejamos opcional con un "?" por si la API vieja lo busca
+  color           String
+  almacenamiento  String
+  precioBase      Decimal
+  stock           Int      @default(1) // <-- Agregamos el stock numérico
+  ventas          Venta[]
+}
+model Cliente {
+  id        String   @id @default(uuid())
+  nombre    String
+  apellido  String
+  dni       String   @unique
+  telefono  String
+  email     String
+  direccion String?
+  createdAt DateTime @default(now())
+  
+  // Le damos un nombre a la relación: "ClienteVentas"
+  ventas    Venta[]  @relation("ClienteVentas")
+}
+
+model Venta {
+  id                 String   @id @default(uuid())
+  
+  // Usamos el mismo nombre de relación aquí
+  cliente            Cliente  @relation("ClienteVentas", fields: [clienteId], references: [id])
+  clienteId          String   
+  
+  iphone             iPhone   @relation(fields: [iphoneId], references: [id])
+  iphoneId           String
+  
+  usuario            Usuario  @relation(fields: [usuarioId], references: [id])
+  usuarioId          String
+  
+  precioVenta        Decimal
+  anticipoEfectivo   Decimal  @default(0)
+  anticipoEquipo     Decimal  @default(0)
+  descripcionEquipo  String?
+  planPago           String
+  totalCuotas        Int
+  montoCuota         Decimal
+  interesPct         Decimal
+  estado             String   @default("activa")
+  fechaVenta         DateTime @default(now())
+  cuotas             Cuota[]
+}
+
+model Cuota {
+  id               String    @id @default(uuid())
+  venta            Venta     @relation(fields: [ventaId], references: [id])
+  ventaId          String
+  numeroCuota      Int
+  montoOriginal    Decimal
+  montoMora        Decimal   @default(0)
+  fechaVencimiento DateTime
+  fechaPago        DateTime?
+  estado           String    @default("pendiente")
+}
+
+model Configuracion {
+  id          String @id @default(uuid())
+  clave       String @unique
+  valor       String
+  descripcion String?
+}
