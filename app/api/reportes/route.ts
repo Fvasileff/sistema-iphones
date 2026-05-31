@@ -1,10 +1,5 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { Prisma } from '@prisma/client'
-
-type CuotaConVenta = Prisma.CuotaGetPayload<{
-  include: { venta: { include: { cliente: true, iphone: true } } }
-}>
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url)
@@ -47,10 +42,10 @@ export async function GET(req: Request) {
       include: { cliente: true, iphone: true, cuotas: true }
     })
 
-    const totalCobradoMes = cuotasPagadas.reduce((acc: number, c: CuotaConVenta) => 
+    const totalCobradoMes = cuotasPagadas.reduce((acc: number, c: { montoOriginal: unknown, montoMora: unknown }) => 
       acc + Number(c.montoOriginal) + Number(c.montoMora), 0)
 
-    const totalDeudaVencida = cuotasVencidas.reduce((acc: number, c: CuotaConVenta) => 
+    const totalDeudaVencida = cuotasVencidas.reduce((acc: number, c: { montoOriginal: unknown, montoMora: unknown }) => 
       acc + Number(c.montoOriginal) + Number(c.montoMora), 0)
 
     return NextResponse.json({
