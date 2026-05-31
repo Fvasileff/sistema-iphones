@@ -1,5 +1,10 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { Prisma } from '@prisma/client'
+
+type CuotaConVenta = Prisma.CuotaGetPayload<{
+  include: { venta: { include: { cliente: true, iphone: true } } }
+}>
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url)
@@ -37,16 +42,15 @@ export async function GET(req: Request) {
       orderBy: { fechaVencimiento: 'asc' }
     })
 
-    // ← único cambio: se agrega cuotas: true
     const ventasDelMes = await prisma.venta.findMany({
       where: { fechaVenta: { gte: inicio, lte: fin } },
       include: { cliente: true, iphone: true, cuotas: true }
     })
 
-    const totalCobradoMes = cuotasPagadas.reduce((acc: number, c) => 
+    const totalCobradoMes = cuotasPagadas.reduce((acc: number, c: CuotaConVenta) => 
       acc + Number(c.montoOriginal) + Number(c.montoMora), 0)
 
-    const totalDeudaVencida = cuotasVencidas.reduce((acc: number, c) => 
+    const totalDeudaVencida = cuotasVencidas.reduce((acc: number, c: CuotaConVenta) => 
       acc + Number(c.montoOriginal) + Number(c.montoMora), 0)
 
     return NextResponse.json({
