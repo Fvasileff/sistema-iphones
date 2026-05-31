@@ -1,8 +1,8 @@
-
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { auth } from '@/lib/auth';
 import { whatsappNuevaFinanciacion } from '@/utils/whatsapp';
+import { PrismaClient } from '@prisma/client';
 
 export async function POST(request: Request) {
   try {
@@ -27,8 +27,7 @@ export async function POST(request: Request) {
       montoCuota, interesPct 
     } = body;
 
-    const resultado = await prisma.$transaction(async (tx) => {
-      // 1. Registrar la venta
+    const resultado = await prisma.$transaction(async (tx: Omit<PrismaClient, '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'>) => {
       const nuevaVenta = await tx.venta.create({
         data: {
           cliente: { connect: { id: clienteId } },
@@ -45,7 +44,6 @@ export async function POST(request: Request) {
         }
       });
 
-      // 2. Generar las cuotas
       const cuotasData = [];
       const dias = planPago === 'SEMANAL' ? 7 : planPago === 'QUINCENAL' ? 15 : 30;
       
@@ -64,7 +62,6 @@ export async function POST(request: Request) {
 
       await tx.cuota.createMany({ data: cuotasData });
 
-      // 3. Descontar stock
       await tx.iPhone.update({
         where: { id: iphoneId },
         data: { stock: { decrement: 1 } }
@@ -73,7 +70,6 @@ export async function POST(request: Request) {
       return nuevaVenta;
     });
 
-    // 4. Mandar WhatsApp de bienvenida (fuera de la transacción)
     try {
       const cliente = await prisma.cliente.findUnique({ where: { id: clienteId } });
       const iphone = await prisma.iPhone.findUnique({ where: { id: iphoneId } });
@@ -89,7 +85,6 @@ export async function POST(request: Request) {
       }
     } catch (wpError) {
       console.error('Error enviando WhatsApp de bienvenida:', wpError)
-      // No cortamos la respuesta, la venta ya se registró
     }
 
     return NextResponse.json(resultado, { status: 201 });
