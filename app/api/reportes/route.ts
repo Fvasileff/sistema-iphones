@@ -43,10 +43,10 @@ export async function GET(req: Request) {
       include: { cliente: true, iphone: true, cuotas: true }
     })
 
-    const totalCobradoMes = cuotasPagadas.reduce((acc, c) => 
+    const totalCobradoMes = cuotasPagadas.reduce((acc: number, c) => 
       acc + Number(c.montoOriginal) + Number(c.montoMora), 0)
 
-    const totalDeudaVencida = cuotasVencidas.reduce((acc, c) => 
+    const totalDeudaVencida = cuotasVencidas.reduce((acc: number, c) => 
       acc + Number(c.montoOriginal) + Number(c.montoMora), 0)
 
     return NextResponse.json({
