@@ -25,11 +25,13 @@ export async function GET(req: Request) {
       orderBy: { fechaVencimiento: 'asc' }
     })
 
+    // Declaramos 'hoy' aquí, antes del .map()
     const hoy = new Date()
-    const cuotasConEstado = cuotas.map(c => ({
+
+    const cuotasConEstado = cuotas.map((c: any) => ({
       ...c,
-      estado: c.estado === 'pendiente' && new Date(c.fechaVencimiento) < hoy
-        ? 'vencida'
+      estado: c.estado === 'pendiente' && new Date(c.fechaVencimiento) < hoy 
+        ? 'vencida' 
         : c.estado
     }))
 
