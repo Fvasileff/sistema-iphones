@@ -3,7 +3,6 @@ import { prisma } from '@/lib/prisma';
 import { auth } from '@/lib/auth';
 import { whatsappNuevaFinanciacion } from '@/utils/whatsapp';
 
-
 export async function POST(request: Request) {
   try {
     const session = await auth(); 
@@ -24,9 +23,10 @@ export async function POST(request: Request) {
     const { 
       clienteId, iphoneId, precioVenta, anticipoEfectivo, 
       anticipoEquipo, descripcionEquipo, planPago, totalCuotas, 
-      montoCuota, interesPct 
+      montoCuota, interesPct, fechaPrimeraCuota
     } = body;
-      const resultado = await prisma.$transaction(async (tx: any) =>  {
+
+    const resultado = await prisma.$transaction(async (tx: any) => {
       const nuevaVenta = await tx.venta.create({
         data: {
           cliente: { connect: { id: clienteId } },
@@ -45,10 +45,11 @@ export async function POST(request: Request) {
 
       const cuotasData = [];
       const dias = planPago === 'SEMANAL' ? 7 : planPago === 'QUINCENAL' ? 15 : 30;
-      
+      const fechaBase = new Date(fechaPrimeraCuota)
+
       for (let i = 1; i <= parseInt(totalCuotas); i++) {
-        const fechaVenc = new Date();
-        fechaVenc.setDate(fechaVenc.getDate() + (i * dias)); 
+        const fechaVenc = new Date(fechaBase)
+        fechaVenc.setDate(fechaBase.getDate() + ((i - 1) * dias))
 
         cuotasData.push({
           ventaId: nuevaVenta.id,

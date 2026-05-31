@@ -18,14 +18,8 @@ interface iPhone {
   stock: number
 }
 
-// Componente Dropdown custom reutilizable
 function Dropdown<T extends string | number>({
-  value,
-  options,
-  onChange,
-  placeholder,
-  disabled,
-  error,
+  value, options, onChange, placeholder, disabled, error,
 }: {
   value: T | ''
   options: { label: string; value: T; disabled?: boolean; badge?: string }[]
@@ -98,7 +92,6 @@ function Dropdown<T extends string | number>({
   )
 }
 
-// Input estilizado
 function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-1.5">
@@ -126,6 +119,7 @@ export default function RegistrarVentaPage() {
   const [totalCuotas, setTotalCuotas] = useState(8)
   const [montoCuota, setMontoCuota] = useState('')
   const [interesPct, setInteresPct] = useState('0')
+  const [fechaPrimeraCuota, setFechaPrimeraCuota] = useState('')
 
   const [cargando, setCargando] = useState(false)
   const [mensaje, setMensaje] = useState({ texto: '', tipo: '' })
@@ -180,14 +174,14 @@ export default function RegistrarVentaPage() {
       const res = await fetch('/api/ventas', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clienteId, iphoneId, precioVenta, anticipoEfectivo, anticipoEquipo, descripcionEquipo, planPago, totalCuotas, montoCuota, interesPct })
+        body: JSON.stringify({ clienteId, iphoneId, precioVenta, anticipoEfectivo, anticipoEquipo, descripcionEquipo, planPago, totalCuotas, montoCuota, interesPct, fechaPrimeraCuota })
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Error al procesar la venta')
       setMensaje({ texto: '¡Financiación registrada y cuotas generadas con éxito!', tipo: 'success' })
       setClienteId(''); setIphoneId(''); setPrecioVenta('')
       setAnticipoEfectivo('0'); setAnticipoEquipo('0'); setDescripcionEquipo('')
-      setMontoCuota(''); setInteresPct('0')
+      setMontoCuota(''); setInteresPct('0'); setFechaPrimeraCuota('')
     } catch (error: any) {
       setMensaje({ texto: error.message, tipo: 'error' })
     } finally {
@@ -215,7 +209,6 @@ export default function RegistrarVentaPage() {
 
       <form onSubmit={handleSubmit} className="space-y-6">
 
-        {/* Sección: Cliente y Equipo */}
         <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-4">
           <p className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Cliente y Equipo</p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -247,7 +240,6 @@ export default function RegistrarVentaPage() {
           </div>
         </div>
 
-        {/* Sección: Precios */}
         <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-4">
           <p className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Precios y Anticipos</p>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -266,10 +258,9 @@ export default function RegistrarVentaPage() {
           </Field>
         </div>
 
-        {/* Sección: Plan de Pagos */}
         <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-4">
           <p className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Plan de Pagos</p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
             <Field label="Frecuencia" required>
               <Dropdown
                 value={planPago}
@@ -290,9 +281,18 @@ export default function RegistrarVentaPage() {
             <Field label="Interés %">
               <input type="number" step="any" value={interesPct} onChange={e => setInteresPct(e.target.value)} className={inputClass} />
             </Field>
+           <Field label="1ra Cuota" required>
+              <input 
+                type="date" 
+                value={fechaPrimeraCuota} 
+                onChange={e => setFechaPrimeraCuota(e.target.value)} 
+                required 
+                className={`${inputClass} h-[46px] [&::-webkit-calendar-picker-indicator]:opacity-50 [&::-webkit-calendar-picker-indicator]:invert`}
+                style={{ colorScheme: 'dark' }}
+              />
+            </Field>
           </div>
 
-          {/* Resumen calculado */}
           {precioVenta && montoCuota && (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-2">
               {[
