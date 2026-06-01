@@ -3,11 +3,23 @@ import { prisma } from '@/lib/prisma'
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url)
+  const tipo = searchParams.get('tipo') || 'mensual'
   const mes = parseInt(searchParams.get('mes') || String(new Date().getMonth() + 1))
   const anio = parseInt(searchParams.get('anio') || String(new Date().getFullYear()))
 
-  const inicio = new Date(anio, mes - 1, 1)
-  const fin = new Date(anio, mes, 0, 23, 59, 59)
+  let inicio: Date, fin: Date
+
+  if (tipo === 'semanal') {
+    fin = new Date()
+    inicio = new Date()
+    inicio.setDate(inicio.getDate() - 7)
+  } else if (tipo === 'anual') {
+    inicio = new Date(anio, 0, 1)
+    fin = new Date(anio, 11, 31, 23, 59, 59)
+  } else {
+    inicio = new Date(anio, mes - 1, 1)
+    fin = new Date(anio, mes, 0, 23, 59, 59)
+  }
 
   try {
     const cuotasPagadas = await prisma.cuota.findMany({
