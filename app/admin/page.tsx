@@ -20,7 +20,7 @@ export default function DashboardPage() {
     <div>
       <div className="mb-8 mt-6 md:mt-0">
         <h1 className="text-3xl md:text-4xl font-bold text-white">
-          Bienvenido, {session?.user?.name} 👋
+          Bienvenido👋
         </h1>
         <p className="text-gray-400 mt-1">Resumen del sistema</p>
       </div>
