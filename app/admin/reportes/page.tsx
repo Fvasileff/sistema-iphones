@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 
+
 interface Cliente {
   nombre: string
   apellido: string
@@ -107,11 +108,12 @@ export default function ReportesPage() {
   const [cargando, setCargando] = useState<boolean>(true)
 
   const cargar = async () => {
-    setCargando(true)
-    const res = await fetch(`/api/reportes?tipo=${tipoPeriodo}&mes=${mes}&anio=${anio}`)
-    if (res.ok) setDatos(await res.json())
-    setCargando(false)
-  }
+      setCargando(true)
+      // 🚀 Le sumamos la configuración de caché al final del fetch
+      const res = await fetch(`/api/reportes?tipo=${tipoPeriodo}&mes=${mes}&anio=${anio}`, { cache: 'no-store' })
+      if (res.ok) setDatos(await res.json())
+      setCargando(false)
+    }
 
   useEffect(() => { cargar() }, [tipoPeriodo, mes, anio])
 

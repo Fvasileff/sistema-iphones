@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 
+
 type Cliente = { nombre: string; apellido: string }
 type Venta = { id: string; cliente: Cliente }
 type Cuota = {
@@ -411,7 +412,8 @@ export default function CuotasPage() {
 
   const cargarCuotas = () => {
     setCargando(true)
-    fetch('/api/cuotas')
+    // 🚀 Le sumamos el { cache: 'no-store' } adentro del fetch
+    fetch('/api/cuotas', { cache: 'no-store' })
       .then(r => r.json())
       .then((data: Cuota[]) => { setCuotas(data); setCargando(false) })
       .catch(() => setCargando(false))
