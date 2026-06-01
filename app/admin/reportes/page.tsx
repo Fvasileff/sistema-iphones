@@ -17,11 +17,12 @@ interface Cuota {
     cliente: Cliente
   }
 }
-
 interface Venta {
   id: number
   fechaVenta: string
   precioVenta: number
+  planPago: string
+  totalCuotas: number
   iphone: {
     modelo: string
   }
@@ -234,30 +235,31 @@ export default function ReportesPage() {
               </div>
             </div>
           </div>
-
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6">
-            <h2 className="text-white font-bold mb-4">📋 Detalle de Ventas ({obtenerTituloPeriodo()})</h2>
-            <div className="space-y-3">
-              {!datos.ventasDelMes || datos.ventasDelMes.length === 0 ? (
-                <p className="text-zinc-600 text-sm text-center py-8">No se registraron ventas en este período.</p>
-              ) : (
-                datos.ventasDelMes.map((v) => (
-                  <div key={v.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-zinc-950 rounded-xl gap-2 border border-zinc-900 hover:border-zinc-800 transition-colors">
-                    <div className="flex flex-col">
-                      <span className="text-white font-bold text-sm">{v.cliente.apellido}, {v.cliente.nombre}</span>
-                      <span className="text-zinc-400 text-xs mt-0.5">{v.iphone.modelo}</span>
-                    </div>
-                    <div className="flex justify-between sm:flex-col sm:items-end gap-1 items-center">
-                      <span className="text-zinc-500 text-xs font-mono bg-zinc-900 px-2 py-0.5 rounded-md sm:bg-transparent sm:p-0">
-                        {new Date(v.fechaVenta).toLocaleDateString('es-AR')}
-                      </span>
-                      <span className="text-white font-bold">${Number(v.precioVenta).toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
-                    </div>
-                  </div>
-                ))
-              )}
+  <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6">
+    <h2 className="text-white font-bold mb-4">📋 Detalle de Ventas ({obtenerTituloPeriodo()})</h2>
+    <div className="space-y-3">
+      {!datos.ventasDelMes || datos.ventasDelMes.length === 0 ? (
+        <p className="text-zinc-600 text-sm text-center py-8">No se registraron ventas en este período.</p>
+      ) : (
+        datos.ventasDelMes.map((v) => (
+          <div key={v.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-zinc-950 rounded-xl gap-2 border border-zinc-900 hover:border-zinc-800 transition-colors">
+            <div className="flex flex-col">
+              <span className="text-white font-bold text-sm">{v.cliente.apellido}, {v.cliente.nombre}</span>
+              <span className="text-zinc-400 text-xs mt-0.5">
+                {v.iphone.modelo} · {v.totalCuotas} cuotas {v.planPago.toLowerCase()}es
+              </span>
+            </div>
+            <div className="flex justify-between sm:flex-col sm:items-end gap-1 items-center">
+              <span className="text-zinc-500 text-xs font-mono bg-zinc-900 px-2 py-0.5 rounded-md sm:bg-transparent sm:p-0">
+                {new Date(v.fechaVenta).toLocaleDateString('es-AR')}
+              </span>
+              <span className="text-white font-bold">${Number(v.precioVenta).toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
             </div>
           </div>
+        ))
+      )}
+    </div>
+  </div>
         </div>
       )}
     </div>
