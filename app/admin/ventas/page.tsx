@@ -287,7 +287,7 @@ export default function RegistrarVentaPage() {
                 value={fechaPrimeraCuota} 
                 onChange={e => setFechaPrimeraCuota(e.target.value)} 
                 required 
-                className={`${inputClass} h-[46px] [&::-webkit-calendar-picker-indicator]:opacity-50 [&::-webkit-calendar-picker-indicator]:invert`}
+                className={`${inputClass} h-[46px] [&::-webkit-calendar-picker-indicator]:opacity-50 [&::-webkit-calendar-picker-indicator]:invert [&::-webkit-datetime-edit]:hidden`}
                 style={{ colorScheme: 'dark' }}
               />
             </Field>
