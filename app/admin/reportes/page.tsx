@@ -218,11 +218,14 @@ export default function ReportesPage() {
                 {!datos.cuotasProximas || datos.cuotasProximas.length === 0 ? (
                   <p className="text-zinc-600 text-sm text-center py-4">No hay cuotas próximas</p>
                 ) : (
-                  datos.cuotasProximas.map((c) => (
+                 datos.cuotasProximas.map((c) => (
                     <div key={c.id} className="flex justify-between items-center text-sm bg-zinc-950 p-3 rounded-xl border border-zinc-900">
                       <div>
                         <p className="text-white font-medium">{c.venta.cliente.apellido}, {c.venta.cliente.nombre}</p>
                         <p className="text-[10px] text-zinc-500 font-mono">DNI: {c.venta.cliente.dni}</p>
+                        <p className="text-[10px] text-yellow-400 mt-0.5">
+                          Vence: {new Date(c.fechaVencimiento).toLocaleDateString('es-AR')} · en {Math.floor((new Date(c.fechaVencimiento).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))} días
+                        </p>
                       </div>
                       <span className="text-yellow-400 font-bold">${Number(c.montoOriginal).toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
                     </div>
