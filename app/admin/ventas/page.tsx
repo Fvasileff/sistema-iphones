@@ -16,7 +16,16 @@ interface iPhone {
   almacenamiento: string
   color: string
   stock: number
+  precio: number // 🚀 AGREGADO: Campo de precio para el catálogo
 }
+
+// Helper para formatear en pesos de forma limpia sin centavos
+const formatARS = (monto: number) => 
+  new Intl.NumberFormat('es-AR', {
+    style: 'currency',
+    currency: 'ARS',
+    maximumFractionDigits: 0
+  }).format(monto)
 
 function Dropdown<T extends string | number>({
   value, options, onChange, placeholder, disabled, error,
@@ -165,6 +174,15 @@ export default function RegistrarVentaPage() {
     if (tipo === 'MENSUAL') setTotalCuotas(2)
   }
 
+  // 🚀 NUEVO: Manejador para cargar automáticamente el precio base cuando elige un iPhone
+  const handleIphoneChange = (id: string) => {
+    setIphoneId(id)
+    const seleccionado = iphones.find(i => i.id === id)
+    if (seleccionado) {
+      setPrecioVenta(String(seleccionado.precio))
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (sinStock) return
@@ -229,12 +247,13 @@ export default function RegistrarVentaPage() {
                 placeholder="Elegir equipo..."
                 error={sinStock}
                 options={iphones.map(i => ({
-                  label: `${i.modelo}${i.variante ? ' ' + i.variante : ''} (${i.almacenamiento} · ${i.color})`,
+                  // 🚀 MODIFICADO: Agregamos el precio formateado a la etiqueta visible del dropdown
+                  label: `${i.modelo}${i.variante ? ' ' + i.variante : ''} (${i.almacenamiento} · ${i.color}) — ${formatARS(i.precio)}`,
                   value: i.id,
                   disabled: i.stock <= 0,
                   badge: i.stock <= 0 ? 'AGOTADO' : `Stock: ${i.stock}`,
                 }))}
-                onChange={setIphoneId}
+                onChange={handleIphoneChange} // 🚀 MODIFICADO: Usa la nueva función automática
               />
             </Field>
           </div>
