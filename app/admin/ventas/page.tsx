@@ -281,16 +281,17 @@ export default function RegistrarVentaPage() {
             <Field label="Interés %">
               <input type="number" step="any" value={interesPct} onChange={e => setInteresPct(e.target.value)} className={inputClass} />
             </Field>
-           <Field label="1ra Cuota" required>
-              <input 
-                type="date" 
-                value={fechaPrimeraCuota} 
-                onChange={e => setFechaPrimeraCuota(e.target.value)} 
-                required 
-                className={`${inputClass} h-[46px] [&::-webkit-calendar-picker-indicator]:opacity-50 [&::-webkit-calendar-picker-indicator]:invert [&::-webkit-datetime-edit]:hidden`}
-                style={{ colorScheme: 'dark' }}
-              />
-            </Field>
+            <Field label="1ra Cuota" required>
+            <input 
+              type="date" 
+              value={fechaPrimeraCuota} 
+              onChange={e => setFechaPrimeraCuota(e.target.value)} 
+              required
+              min={new Date().toISOString().split('T')[0]}
+              className={`${inputClass} h-[46px] [&::-webkit-calendar-picker-indicator]:opacity-50 [&::-webkit-calendar-picker-indicator]:invert [&::-webkit-datetime-edit]:hidden`}
+              style={{ colorScheme: 'dark' }}
+            />
+          </Field>
           </div>
 
           {precioVenta && montoCuota && (

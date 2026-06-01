@@ -12,6 +12,7 @@ interface Cuota {
   id: number
   montoOriginal: number
   montoMora: number
+  fechaVencimiento: string
   venta: {
     cliente: Cliente
   }
@@ -38,7 +39,6 @@ interface Reporte {
 
 type PeriodoTipo = 'semanal' | 'mensual' | 'anual'
 
-// Componente Dropdown custom
 function Dropdown<T extends string | number>({
   value,
   options,
@@ -198,6 +198,9 @@ export default function ReportesPage() {
                       <div>
                         <p className="text-white font-medium">{c.venta.cliente.apellido}, {c.venta.cliente.nombre}</p>
                         <p className="text-[10px] text-zinc-500 font-mono">DNI: {c.venta.cliente.dni}</p>
+                        <p className="text-[10px] text-red-400 mt-0.5">
+                          Venció: {new Date(c.fechaVencimiento).toLocaleDateString('es-AR')} · {Math.floor((new Date().getTime() - new Date(c.fechaVencimiento).getTime()) / (1000 * 60 * 60 * 24))} días
+                        </p>
                       </div>
                       <span className="text-red-400 font-bold">${(Number(c.montoOriginal) + Number(c.montoMora)).toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
                     </div>
