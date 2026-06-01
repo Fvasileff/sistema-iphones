@@ -1,16 +1,12 @@
-// app/api/iphones/route.ts
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
 
-// 1. GET: Traer todos los iPhones del catálogo
 export async function GET() {
   try {
-    // Quitamos el 'where: { activo: true }' porque esa columna ya no existe
     const iphones = await prisma.iPhone.findMany({
       orderBy: { modelo: 'asc' }
     })
-    
     return NextResponse.json(iphones)
   } catch (error) {
     console.error('Error en GET /api/iphones:', error)
@@ -18,14 +14,12 @@ export async function GET() {
   }
 }
 
-// 2. POST: Guardar un nuevo iPhone
 export async function POST(request: Request) {
   try {
     const session = await auth()
     if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
     const body = await request.json()
-    // Asegurate que los campos coincidan con los que envías desde el formulario
     const { modelo, color, almacenamiento, precioBase, stock } = body
 
     if (!modelo || !color || !almacenamiento || !precioBase) {
@@ -38,7 +32,7 @@ export async function POST(request: Request) {
         color,
         almacenamiento,
         precioBase: parseFloat(precioBase),
-        stock: parseInt(stock || 1) // Guardamos el stock como número
+        stock: parseInt(stock ?? 1)
       }
     })
 
@@ -46,5 +40,31 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error('Error en POST /api/iphones:', error)
     return NextResponse.json({ error: 'Error al guardar el iPhone' }, { status: 500 })
+  }
+}
+
+export async function PATCH(request: Request) {
+  try {
+    const session = await auth()
+    if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+
+    const body = await request.json()
+    const { id, precioBase, stock } = body
+
+    if (!id) return NextResponse.json({ error: 'Falta el id' }, { status: 400 })
+
+    const data: { precioBase?: number; stock?: number } = {}
+    if (precioBase !== undefined) data.precioBase = parseFloat(precioBase)
+    if (stock !== undefined) data.stock = parseInt(stock)
+
+    const actualizado = await prisma.iPhone.update({
+      where: { id },
+      data
+    })
+
+    return NextResponse.json(actualizado)
+  } catch (error) {
+    console.error('Error en PATCH /api/iphones:', error)
+    return NextResponse.json({ error: 'Error al actualizar' }, { status: 500 })
   }
 }
