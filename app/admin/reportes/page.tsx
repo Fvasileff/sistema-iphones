@@ -131,10 +131,10 @@ export default function ReportesPage() {
         <div className="flex flex-wrap gap-2 items-center">
           <Dropdown
             value={tipoPeriodo}
-            options={[
-              { label: 'Vista Semanal', value: 'semanal' },
-              { label: 'Vista Mensual', value: 'mensual' },
-              { label: 'Vista Anual', value: 'anual' },
+           options={[
+              { label: 'Semanal', value: 'semanal' },
+              { label: 'Mensual', value: 'mensual' },
+              { label: 'Anual', value: 'anual' },
             ]}
             onChange={val => setTipoPeriodo(val as PeriodoTipo)}
           />
