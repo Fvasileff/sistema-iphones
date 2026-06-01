@@ -3,19 +3,21 @@
 import { useState, useEffect } from 'react'
 
 type Cliente = { nombre: string; apellido: string }
-type Venta = { cliente: Cliente }
+type Venta = { id: string; cliente: Cliente }
 type Cuota = {
   id: number
+  ventaId: string
   estado: 'pendiente' | 'pagada' | 'mora'
   montoOriginal: number
   montoMora?: number
   fechaVencimiento: string
   venta: Venta
-  numeroCuota?: number // <-- Agregamos la propiedad por si viene de la base de datos
+  numeroCuota?: number
 }
 
 type ClienteGroup = {
   key: string
+  ventaId: string
   nombre: string
   apellido: string
   cuotas: Cuota[]
@@ -76,6 +78,7 @@ function EstadoPill({ estado }: { estado: Cuota['estado'] }) {
     </span>
   )
 }
+
 function CuotaRow({
   c,
   index,
@@ -96,7 +99,6 @@ function CuotaRow({
 
   const nroCuotaActual = c.numeroCuota ?? (index + 1)
 
-  // Borde lateral izquierdo según el estado de la cuota
   const borderLeftColor = mora
     ? 'border-l-4 border-l-red-500'
     : pagada
@@ -109,12 +111,8 @@ function CuotaRow({
         pagada ? 'opacity-65' : ''
       }`}
     >
-      {/* Contenedor principal: siempre en fila para mantener Izquierda vs Derecha */}
       <div className="flex items-center justify-between gap-3 w-full">
-        
-        {/* BLOQUE IZQUIERDO: Estructura vertical apilada */}
         <div className="flex flex-col gap-1 min-w-0">
-          {/* 1. Número de cuota y Estado */}
           <div className="flex items-center gap-2">
             <span className="text-[11px] font-bold text-zinc-400 bg-zinc-900 border border-zinc-800 px-2 py-0.5 rounded-md shrink-0">
               Cuota {nroCuotaActual}/{totalCuotas}
@@ -122,12 +120,10 @@ function CuotaRow({
             <EstadoPill estado={c.estado} />
           </div>
           
-          {/* 2. Abajo del número: La fecha de vencimiento (DD/MM/AAAA) */}
           <p className="text-zinc-400 text-xs pl-0.5">
             Vence {formatFecha(c.fechaVencimiento)}
           </p>
 
-          {/* 3. Abajo de la fecha: La mora aplicada (si existe) */}
           {montoMora > 0 && (
             <p className="text-red-400 text-[11px] font-medium pl-0.5 mt-0.5">
               ⚠️ Mora aplicada: +${fmt(montoMora)}
@@ -135,9 +131,7 @@ function CuotaRow({
           )}
         </div>
 
-        {/* BLOQUE DERECHO: Montos y Botones alineados a la derecha */}
         <div className="flex flex-col items-end gap-2 shrink-0">
-          {/* Precios */}
           <div className="text-right">
             <p className={`text-sm font-bold tabular-nums ${mora ? 'text-red-400' : pagada ? 'text-green-400' : 'text-white'}`}>
               ${fmt(total)}
@@ -149,11 +143,9 @@ function CuotaRow({
             )}
           </div>
 
-          {/* Botones de acción */}
           <div className="flex items-center gap-1.5">
             {!pagada && (
               <>
-                {/* Si ya tiene mora, oculta el botón "+ Mora" para que no se duplique */}
                 {!mora && (
                   <button
                     onClick={() => onMora(c)}
@@ -177,11 +169,11 @@ function CuotaRow({
             )}
           </div>
         </div>
-
       </div>
     </div>
   )
 }
+
 function ClienteCard({
   group,
   onMora,
@@ -228,11 +220,12 @@ function ClienteCard({
           <p className="text-white font-semibold text-sm">
             {group.apellido}, {group.nombre}
           </p>
-          <p className="text-zinc-500 text-xs mt-0.5">
-            {group.cuotas.length} cuota{group.cuotas.length !== 1 ? 's' : ''}
-            {tieneMora    && <span className="text-red-400 ml-2">• con mora</span>}
-            {todasPagadas && <span className="text-green-400 ml-2">• al día</span>}
-          </p>
+          <div className="text-zinc-500 text-xs mt-0.5 flex flex-wrap items-center gap-x-2">
+            <span>{group.cuotas.length} cuota{group.cuotas.length !== 1 ? 's' : ''}</span>
+            {tieneMora    && <span className="text-red-400">• con mora</span>}
+            {todasPagadas && <span className="text-green-400">• al día</span>}
+            <span className="text-zinc-600 font-medium bg-zinc-950 px-1.5 py-0.5 rounded text-[10px]">Ref: Venta #{group.ventaId.slice(-4)}</span>
+          </div>
         </div>
 
         {!todasPagadas && totalPendiente > 0 && (
@@ -255,7 +248,6 @@ function ClienteCard({
       {abierto && (
         <div className="px-3 sm:px-4 pb-4 space-y-2">
           <div className="border-t border-zinc-800 mb-3" />
-          {/* Mapeamos enviando el index y el total de cuotas de este grupo */}
           {group.cuotas.map((c, index) => (
             <CuotaRow 
               key={c.id} 
@@ -392,19 +384,18 @@ function agruparPorCliente(cuotas: Cuota[]): ClienteGroup[] {
   const map = new Map<string, ClienteGroup>()
   for (const c of cuotas) {
     const { nombre, apellido } = c.venta.cliente
-    const key = `${apellido}||${nombre}`.toLowerCase()
-    if (!map.has(key)) map.set(key, { key, nombre, apellido, cuotas: [] })
+    const vId = c.ventaId || c.venta?.id || 'sin-id'
+    const key = `${apellido}||${nombre}||${vId}`.toLowerCase()
+    
+    if (!map.has(key)) {
+      map.set(key, { key, ventaId: vId, nombre, apellido, cuotas: [] })
+    }
     map.get(key)!.cuotas.push(c)
   }
-  
   const grupos = Array.from(map.values())
-  
-  // Ordenamos las cuotas de cada cliente cronológicamente por fecha de vencimiento
-  // Esto garantiza que el index autocalculado coincida perfectamente con el orden real
   grupos.forEach(g => {
     g.cuotas.sort((a, b) => new Date(a.fechaVencimiento).getTime() - new Date(b.fechaVencimiento).getTime())
   })
-  
   return grupos
 }
 
@@ -412,6 +403,7 @@ export default function CuotasPage() {
   const [cuotas, setCuotas]     = useState<Cuota[]>([])
   const [cargando, setCargando] = useState(true)
   const [filtro, setFiltro]     = useState<FiltroKey>('todas')
+  const [busqueda, setBusqueda] = useState('') // 🚀 Estado original de búsqueda agregado
   const [cuotaMora, setCuotaMora] = useState<Cuota | null>(null)
   const [cuotaPago, setCuotaPago] = useState<Cuota | null>(null)
 
@@ -425,7 +417,14 @@ export default function CuotasPage() {
       .catch(() => setCargando(false))
   }
 
-  const cuotasFiltradas = cuotas.filter(c => {
+  // 🚀 1. Buscador que filtra por nombre completo
+  const cuotasBuscadas = cuotas.filter(c => {
+    const completo = `${c.venta.cliente.nombre} ${c.venta.cliente.apellido}`.toLowerCase()
+    return completo.includes(busqueda.toLowerCase())
+  })
+
+  // 🚀 2. Filtro original de categorías sin alterar nada
+  const cuotasFiltradas = cuotasBuscadas.filter(c => {
     if (filtro === 'pendientes') return c.estado === 'pendiente'
     if (filtro === 'pagadas')    return c.estado === 'pagada'
     if (filtro === 'mora')       return c.estado === 'mora'
@@ -465,7 +464,18 @@ export default function CuotasPage() {
         📅 Gestión de cuotas
       </h1>
 
-      {/* Filtros deslizables */}
+      {/* 🚀 Buscador inyectado limpiamente */}
+      <div className="mb-4">
+        <input
+          type="text"
+          value={busqueda}
+          onChange={e => setBusqueda(e.target.value)}
+          placeholder="🔍 Buscar cliente por nombre o apellido..."
+          className="w-full px-4 py-3 rounded-xl border border-zinc-800 bg-zinc-900 text-white text-sm placeholder-zinc-500 focus:outline-none focus:border-zinc-600 transition-colors"
+        />
+      </div>
+
+      {/* Tus categorías intactas */}
       <div className="relative -mx-4 px-4 sm:mx-0 sm:px-0 mb-6">
         <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide snap-x">
           {FILTROS.map(f => (
@@ -489,11 +499,10 @@ export default function CuotasPage() {
         </div>
       </div>
 
-      {/* Lista */}
       {cargando ? (
         <p className="text-zinc-500 text-center py-20 text-sm">Cargando...</p>
       ) : grupos.length === 0 ? (
-        <p className="text-zinc-600 text-center py-20 text-sm">No hay cuotas en esta categoría</p>
+        <p className="text-zinc-600 text-center py-20 text-sm">No se encontraron cuotas</p>
       ) : (
         <div className="space-y-3">
           {grupos.map(g => (
