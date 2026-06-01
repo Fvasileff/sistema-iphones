@@ -16,16 +16,20 @@ interface iPhone {
   almacenamiento: string
   color: string
   stock: number
-  precio: number // 🚀 AGREGADO: Campo de precio para el catálogo
+  precioBase: number // 🚀 CORREGIDO: Coincide con tu esquema de Prisma
 }
 
 // Helper para formatear en pesos de forma limpia sin centavos
-const formatARS = (monto: number) => 
-  new Intl.NumberFormat('es-AR', {
+const formatARS = (monto: any) => {
+  if (monto === undefined || monto === null || isNaN(Number(monto))) {
+    return '$ 0'
+  }
+  return new Intl.NumberFormat('es-AR', {
     style: 'currency',
     currency: 'ARS',
     maximumFractionDigits: 0
-  }).format(monto)
+  }).format(Number(monto))
+}
 
 function Dropdown<T extends string | number>({
   value, options, onChange, placeholder, disabled, error,
@@ -174,12 +178,12 @@ export default function RegistrarVentaPage() {
     if (tipo === 'MENSUAL') setTotalCuotas(2)
   }
 
-  // 🚀 NUEVO: Manejador para cargar automáticamente el precio base cuando elige un iPhone
+  // 🚀 CORREGIDO: Ahora lee correctamente 'precioBase' al seleccionar el equipo
   const handleIphoneChange = (id: string) => {
     setIphoneId(id)
     const seleccionado = iphones.find(i => i.id === id)
     if (seleccionado) {
-      setPrecioVenta(String(seleccionado.precio))
+      setPrecioVenta(String(seleccionado.precioBase))
     }
   }
 
@@ -247,13 +251,13 @@ export default function RegistrarVentaPage() {
                 placeholder="Elegir equipo..."
                 error={sinStock}
                 options={iphones.map(i => ({
-                  // 🚀 MODIFICADO: Agregamos el precio formateado a la etiqueta visible del dropdown
-                  label: `${i.modelo}${i.variante ? ' ' + i.variante : ''} (${i.almacenamiento} · ${i.color}) — ${formatARS(i.precio)}`,
+                  // 🚀 CORREGIDO: Usa i.precioBase y formatARS para mostrar el precio real de lista
+                  label: `${i.modelo}${i.variante ? ' ' + i.variante : ''} (${i.almacenamiento} · ${i.color}) — ${formatARS(i.precioBase)}`,
                   value: i.id,
                   disabled: i.stock <= 0,
                   badge: i.stock <= 0 ? 'AGOTADO' : `Stock: ${i.stock}`,
                 }))}
-                onChange={handleIphoneChange} // 🚀 MODIFICADO: Usa la nueva función automática
+                onChange={handleIphoneChange}
               />
             </Field>
           </div>

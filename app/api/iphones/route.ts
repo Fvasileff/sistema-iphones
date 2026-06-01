@@ -32,7 +32,7 @@ export async function POST(request: Request) {
         color,
         almacenamiento,
         precioBase: parseFloat(precioBase),
-        stock: parseInt(stock ?? 1)
+        stock: parseInt(stock || 1)
       }
     })
 
