@@ -158,7 +158,7 @@ function CuotaRow({
           <div className="flex items-center gap-1.5">
             {!pagada && (
               <>
-                {!mora && (
+                {vencida && (
                   <button
                     onClick={() => onMora(c)}
                     className="bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-300 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition"
