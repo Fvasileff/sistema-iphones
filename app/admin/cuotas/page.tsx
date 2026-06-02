@@ -4,11 +4,11 @@ import { useState, useEffect } from 'react'
 
 
 type Cliente = { nombre: string; apellido: string }
-type Venta = { id: string; cliente: Cliente }
+type Venta = { id: string; cliente: Cliente; fechaVenta: string }  // ✅ agregado fechaVenta
 type Cuota = {
   id: number
   ventaId: string
-  estado: 'pendiente' | 'pagada' | 'mora'
+  estado: 'pendiente' | 'pagada' | 'mora' | 'vencida'
   montoOriginal: number
   montoMora?: number
   fechaVencimiento: string
@@ -47,6 +47,7 @@ function formatFecha(str: string): string {
 const FILTROS = [
   { key: 'todas',      label: 'Todas' },
   { key: 'pendientes', label: 'Pendientes' },
+  { key: 'vencidas',   label: 'Vencidas' },
   { key: 'pagadas',    label: 'Pagadas' },
   { key: 'mora',       label: 'En mora' },
 ] as const
@@ -56,6 +57,7 @@ type FiltroKey = (typeof FILTROS)[number]['key']
 const FILTER_ACTIVE: Record<FiltroKey, string> = {
   todas:      'bg-blue-600 text-white border-blue-600',
   pendientes: 'bg-amber-500 text-white border-amber-500',
+  vencidas:   'bg-orange-500 text-white border-orange-500',
   pagadas:    'bg-green-600 text-white border-green-600',
   mora:       'bg-red-600 text-white border-red-600',
 }
@@ -71,6 +73,12 @@ function EstadoPill({ estado }: { estado: Cuota['estado'] }) {
     return (
       <span className="text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-green-500/10 text-green-400 border border-green-500/25">
         Pagada
+      </span>
+    )
+  if (estado === 'vencida')
+    return (
+      <span className="text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-orange-500/10 text-orange-400 border border-orange-500/25">
+        Vencida
       </span>
     )
   return (
@@ -93,8 +101,9 @@ function CuotaRow({
   onMora: (c: Cuota) => void
   onPago: (c: Cuota) => void
 }) {
-  const mora   = c.estado === 'mora'
-  const pagada = c.estado === 'pagada'
+  const mora    = c.estado === 'mora'
+  const pagada  = c.estado === 'pagada'
+  const vencida = c.estado === 'vencida'
   const montoMora = Number(c.montoMora ?? 0)
   const total     = Number(c.montoOriginal) + montoMora
 
@@ -104,6 +113,8 @@ function CuotaRow({
     ? 'border-l-4 border-l-red-500'
     : pagada
     ? 'border-l-4 border-l-green-500'
+    : vencida
+    ? 'border-l-4 border-l-orange-500'
     : 'border-l-4 border-l-amber-500'
 
   return (
@@ -134,7 +145,7 @@ function CuotaRow({
 
         <div className="flex flex-col items-end gap-2 shrink-0">
           <div className="text-right">
-            <p className={`text-sm font-bold tabular-nums ${mora ? 'text-red-400' : pagada ? 'text-green-400' : 'text-white'}`}>
+            <p className={`text-sm font-bold tabular-nums ${mora ? 'text-red-400' : pagada ? 'text-green-400' : vencida ? 'text-orange-400' : 'text-white'}`}>
               ${fmt(total)}
             </p>
             {montoMora > 0 && (
@@ -187,6 +198,7 @@ function ClienteCard({
   const [abierto, setAbierto] = useState(true)
 
   const tieneMora    = group.cuotas.some(c => c.estado === 'mora')
+  const tieneVencida = group.cuotas.some(c => c.estado === 'vencida')
   const todasPagadas = group.cuotas.every(c => c.estado === 'pagada')
 
   const totalPendiente = group.cuotas
@@ -197,15 +209,22 @@ function ClienteCard({
 
   const avatarColor = tieneMora
     ? 'bg-red-500/15 text-red-400'
+    : tieneVencida
+    ? 'bg-orange-500/15 text-orange-400'
     : todasPagadas
     ? 'bg-green-500/15 text-green-400'
     : 'bg-blue-500/15 text-blue-400'
 
   const borderColor = tieneMora
     ? 'border-red-500/25'
+    : tieneVencida
+    ? 'border-orange-500/25'
     : todasPagadas
     ? 'border-green-500/15'
     : 'border-zinc-800'
+
+  // ✅ Fecha de compra tomada de la primera cuota
+  const fechaCompra = formatFecha(group.cuotas[0]?.venta?.fechaVenta ?? '')
 
   return (
     <div className={`bg-zinc-900 rounded-2xl border transition ${borderColor}`}>
@@ -224,15 +243,19 @@ function ClienteCard({
           <div className="text-zinc-500 text-xs mt-0.5 flex flex-wrap items-center gap-x-2">
             <span>{group.cuotas.length} cuota{group.cuotas.length !== 1 ? 's' : ''}</span>
             {tieneMora    && <span className="text-red-400">• con mora</span>}
+            {tieneVencida && !tieneMora && <span className="text-orange-400">• vencida</span>}
             {todasPagadas && <span className="text-green-400">• al día</span>}
-            <span className="text-zinc-600 font-medium bg-zinc-950 px-1.5 py-0.5 rounded text-[10px]">Ref: Venta #{group.ventaId.slice(-4)}</span>
+            {/* ✅ Reemplazado el ID por la fecha de compra */}
+            <span className="text-zinc-600 font-medium bg-zinc-950 px-1.5 py-0.5 rounded text-[10px]">
+              Compra: {fechaCompra}
+            </span>
           </div>
         </div>
 
         {!todasPagadas && totalPendiente > 0 && (
           <div className="text-right shrink-0 mr-2">
             <p className="text-xs text-zinc-500">Pendiente</p>
-            <p className={`text-sm font-bold tabular-nums ${tieneMora ? 'text-red-400' : 'text-white'}`}>
+            <p className={`text-sm font-bold tabular-nums ${tieneMora ? 'text-red-400' : tieneVencida ? 'text-orange-400' : 'text-white'}`}>
               ${fmt(totalPendiente)}
             </p>
           </div>
@@ -404,7 +427,7 @@ export default function CuotasPage() {
   const [cuotas, setCuotas]     = useState<Cuota[]>([])
   const [cargando, setCargando] = useState(true)
   const [filtro, setFiltro]     = useState<FiltroKey>('todas')
-  const [busqueda, setBusqueda] = useState('') // 🚀 Estado original de búsqueda agregado
+  const [busqueda, setBusqueda] = useState('')
   const [cuotaMora, setCuotaMora] = useState<Cuota | null>(null)
   const [cuotaPago, setCuotaPago] = useState<Cuota | null>(null)
 
@@ -412,22 +435,20 @@ export default function CuotasPage() {
 
   const cargarCuotas = () => {
     setCargando(true)
-    // 🚀 Le sumamos el { cache: 'no-store' } adentro del fetch
     fetch('/api/cuotas', { cache: 'no-store' })
       .then(r => r.json())
       .then((data: Cuota[]) => { setCuotas(data); setCargando(false) })
       .catch(() => setCargando(false))
   }
 
-  // 🚀 1. Buscador que filtra por nombre completo
   const cuotasBuscadas = cuotas.filter(c => {
     const completo = `${c.venta.cliente.nombre} ${c.venta.cliente.apellido}`.toLowerCase()
     return completo.includes(busqueda.toLowerCase())
   })
 
-  // 🚀 2. Filtro original de categorías sin alterar nada
   const cuotasFiltradas = cuotasBuscadas.filter(c => {
     if (filtro === 'pendientes') return c.estado === 'pendiente'
+    if (filtro === 'vencidas')   return c.estado === 'vencida'
     if (filtro === 'pagadas')    return c.estado === 'pagada'
     if (filtro === 'mora')       return c.estado === 'mora'
     return true
@@ -438,6 +459,7 @@ export default function CuotasPage() {
   const conteos: Record<FiltroKey, number> = {
     todas:      cuotas.length,
     pendientes: cuotas.filter(c => c.estado === 'pendiente').length,
+    vencidas:   cuotas.filter(c => c.estado === 'vencida').length,
     pagadas:    cuotas.filter(c => c.estado === 'pagada').length,
     mora:       cuotas.filter(c => c.estado === 'mora').length,
   }
@@ -466,7 +488,6 @@ export default function CuotasPage() {
         📅 Gestión de cuotas
       </h1>
 
-      {/* 🚀 Buscador inyectado limpiamente */}
       <div className="mb-4">
         <input
           type="text"
@@ -477,7 +498,6 @@ export default function CuotasPage() {
         />
       </div>
 
-      {/* Tus categorías intactas */}
       <div className="relative -mx-4 px-4 sm:mx-0 sm:px-0 mb-6">
         <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide snap-x">
           {FILTROS.map(f => (
