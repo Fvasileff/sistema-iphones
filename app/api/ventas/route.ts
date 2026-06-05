@@ -45,12 +45,10 @@ export async function POST(request: Request) {
 
       const cuotasData = [];
       const dias = planPago === 'SEMANAL' ? 7 : planPago === 'QUINCENAL' ? 15 : 30;
-      const fechaBase = new Date(fechaPrimeraCuota)
+      const [anio, mes, dia] = fechaPrimeraCuota.split('-').map(Number)
 
       for (let i = 1; i <= parseInt(totalCuotas); i++) {
-        const fechaVenc = new Date(fechaBase)
-        fechaVenc.setDate(fechaBase.getDate() + ((i - 1) * dias))
-
+        const fechaVenc = new Date(anio, mes - 1, dia + ((i - 1) * dias))
         cuotasData.push({
           ventaId: nuevaVenta.id,
           numeroCuota: i,
@@ -59,7 +57,6 @@ export async function POST(request: Request) {
           estado: "pendiente"
         });
       }
-
       await tx.cuota.createMany({ data: cuotasData });
 
       await tx.iPhone.update({

@@ -58,17 +58,25 @@ function Dropdown<T extends string | number>({
       <button
         type="button"
         onClick={() => !disabled && setOpen(prev => !prev)}
-        className={`flex items-center justify-between w-full px-4 py-3 rounded-xl border text-sm font-medium transition-all
+        className={`flex items-center justify-between w-full px-4 py-3 rounded-xl border text-base font-medium transition-all
           ${disabled ? 'opacity-40 cursor-not-allowed bg-zinc-800 border-zinc-700' :
             error ? 'border-red-500 bg-zinc-900 hover:border-red-400' :
             open ? 'border-blue-500 bg-zinc-900' :
             'border-zinc-700 bg-zinc-900 hover:border-zinc-500'}
           text-white`}
       >
-        <span className={selected ? 'text-white' : 'text-zinc-500'}>
-          {selected ? selected.label : (placeholder || 'Seleccionar...')}
-        </span>
-        <svg className={`w-4 h-4 text-zinc-400 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+        <div className="flex items-center justify-between flex-1 min-w-0 mr-2">
+          <span className={`truncate ${selected ? 'text-white' : 'text-zinc-500'}`}>
+            {selected ? selected.label : (placeholder || 'Seleccionar...')}
+          </span>
+          {selected?.badge && (
+            <span className={`text-xs px-2 py-0.5 rounded-full font-medium shrink-0 ml-2 whitespace-nowrap
+              ${selected.badge === 'AGOTADO' ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'}`}>
+              {selected.badge}
+            </span>
+          )}
+        </div>
+        <svg className={`w-4 h-4 text-zinc-400 transition-transform duration-200 shrink-0 ${open ? 'rotate-180' : ''}`}
           fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
         </svg>
@@ -82,17 +90,17 @@ function Dropdown<T extends string | number>({
               type="button"
               disabled={opt.disabled}
               onClick={() => { if (!opt.disabled) { onChange(opt.value); setOpen(false) } }}
-              className={`w-full text-left px-4 py-3 text-sm transition-colors flex items-center justify-between
+              className={`w-full text-left px-4 py-3 text-base transition-colors flex items-center justify-between gap-2
                 ${opt.disabled ? 'opacity-40 cursor-not-allowed text-zinc-500' :
                   opt.value === value ? 'bg-zinc-800 text-white font-semibold' :
                   'text-zinc-300 hover:bg-zinc-800'}`}
             >
-              <span>
+              <span className="truncate flex-1 min-w-0">
                 {opt.value === value && <span className="mr-2 text-blue-400">✓</span>}
                 {opt.label}
               </span>
               {opt.badge && (
-                <span className={`text-xs px-2 py-0.5 rounded-full font-medium
+                <span className={`text-xs px-2 py-0.5 rounded-full font-medium shrink-0 whitespace-nowrap
                   ${opt.badge === 'AGOTADO' ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'}`}>
                   {opt.badge}
                 </span>
@@ -116,7 +124,7 @@ function Field({ label, required, children }: { label: string; required?: boolea
   )
 }
 
-const inputClass = "w-full px-4 py-3 rounded-xl border border-zinc-700 bg-zinc-900 text-white text-sm placeholder-zinc-600 focus:outline-none focus:border-blue-500 transition-colors"
+const inputClass = "w-full px-4 py-3 rounded-xl border border-zinc-700 bg-zinc-900 text-white text-base placeholder-zinc-600 focus:outline-none focus:border-blue-500 transition-colors"
 
 export default function RegistrarVentaPage() {
   const [clientes, setClientes] = useState<Cliente[]>([])
@@ -216,7 +224,7 @@ export default function RegistrarVentaPage() {
   const saldo = precio - anticipo
 
   return (
-    <div className="p-4 md:p-8 max-w-3xl mx-auto">
+    <div className="p-4 md:p-8 max-w-4xl mx-auto">
       <h1 className="text-2xl md:text-3xl font-bold text-white mb-8">Nueva Financiación</h1>
 
       {mensaje.texto && (
@@ -283,7 +291,7 @@ export default function RegistrarVentaPage() {
 
         <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-4">
           <p className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Plan de Pagos</p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <Field label="Frecuencia" required>
               <Dropdown
                 value={planPago}
@@ -298,23 +306,25 @@ export default function RegistrarVentaPage() {
             <Field label="Cant. Cuotas" required>
               <input type="number" value={totalCuotas} onChange={e => setTotalCuotas(parseInt(e.target.value))} required className={inputClass} />
             </Field>
-            <Field label="Valor de Cuota" required>
-              <input type="number" step="any" value={montoCuota} onChange={e => setMontoCuota(e.target.value)} required placeholder="Auto" className={inputClass} />
-            </Field>
             <Field label="Interés %">
               <input type="number" step="any" value={interesPct} onChange={e => setInteresPct(e.target.value)} className={inputClass} />
             </Field>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Field label="1ra Cuota" required>
-            <input 
-              type="date" 
-              value={fechaPrimeraCuota} 
-              onChange={e => setFechaPrimeraCuota(e.target.value)} 
-              required
-              min={new Date().toISOString().split('T')[0]}
-              className={`${inputClass} h-[46px] [&::-webkit-calendar-picker-indicator]:opacity-50 [&::-webkit-calendar-picker-indicator]:invert [&::-webkit-datetime-edit]:hidden`}
-              style={{ colorScheme: 'dark' }}
-            />
-          </Field>
+              <input 
+                type="date" 
+                value={fechaPrimeraCuota} 
+                onChange={e => setFechaPrimeraCuota(e.target.value)} 
+                required
+                min={new Date().toISOString().split('T')[0]}
+                className={`${inputClass} h-[46px] [&::-webkit-calendar-picker-indicator]:opacity-50 [&::-webkit-calendar-picker-indicator]:invert`}
+                style={{ colorScheme: 'dark' }}
+              />
+            </Field>
+            <Field label="Valor de Cuota" required>
+              <input type="number" step="any" value={montoCuota} onChange={e => setMontoCuota(e.target.value)} required placeholder="Auto" className={inputClass} />
+            </Field>
           </div>
 
           {precioVenta && montoCuota && (
