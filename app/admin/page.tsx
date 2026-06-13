@@ -24,8 +24,14 @@ export default function DashboardPage() {
         </h1>
         <p className="text-gray-400 mt-1">Resumen del sistema</p>
       </div>
+<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+        <div className="bg-gray-900 rounded-2xl p-6 min-w-0">
+          <p className="text-gray-400 text-sm">Total vendido (mes)</p>
+          <p className="text-2xl font-bold text-blue-400 mt-2">
+            {datos ? `$${Number(datos.totalVentasMes || 0).toLocaleString('es-AR', { minimumFractionDigits: 2 })}` : '...'}
+          </p>
+        </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <div className="bg-gray-900 rounded-2xl p-6">
           <p className="text-gray-400 text-sm">Ventas del mes</p>
           <p className="text-3xl font-bold text-white mt-2">
@@ -49,10 +55,10 @@ export default function DashboardPage() {
           </p>
         </div>
 
-        <div className="bg-gray-900 rounded-2xl p-6">
+        <div className="bg-gray-900 rounded-2xl p-6 min-w-0">
           <p className="text-gray-400 text-sm">Cobrado este mes</p>
-          <p className="text-3xl font-bold text-green-400 mt-2">
-            {datos ? `$${datos.totalCobradoMes.toFixed(2)}` : '...'}
+          <p className="text-2xl font-bold text-green-400 mt-2">
+            {datos ? `$${Number(datos.totalCobradoMes).toLocaleString('es-AR', { minimumFractionDigits: 2 })}` : '...'}
           </p>
         </div>
       </div>

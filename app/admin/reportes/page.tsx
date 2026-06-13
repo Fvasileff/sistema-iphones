@@ -33,6 +33,7 @@ interface Venta {
 interface Reporte {
   totalCobradoMes: number
   totalDeudaVencida: number
+  totalVentasMes: number
   cantVentasMes: number
   cuotasVencidas: Cuota[]
   cuotasProximas: Cuota[]
@@ -166,17 +167,23 @@ export default function ReportesPage() {
           <p className="text-zinc-500 text-sm">Analizando datos...</p>
         </div>
       ) : (
-        <div className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 hover:border-zinc-700 transition-all">
+      <div className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 hover:border-zinc-700 transition-all min-w-0 md:col-span-2 lg:col-span-1">
+              <p className="text-zinc-500 text-xs font-bold uppercase tracking-wider mb-2">Total Vendido ({obtenerTituloPeriodo()})</p>
+              <p className="text-2xl font-bold text-blue-400">
+                ${(datos.totalVentasMes || 0).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+              </p>
+            </div>
+            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 hover:border-zinc-700 transition-all min-w-0">
               <p className="text-zinc-500 text-xs font-bold uppercase tracking-wider mb-2">Cobrado ({obtenerTituloPeriodo()})</p>
-              <p className="text-3xl font-bold text-green-400">
+              <p className="text-2xl font-bold text-green-400">
                 ${(datos.totalCobradoMes || 0).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
               </p>
             </div>
-            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 hover:border-zinc-700 transition-all">
+            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 hover:border-zinc-700 transition-all min-w-0">
               <p className="text-zinc-500 text-xs font-bold uppercase tracking-wider mb-2">Deuda Vencida Total</p>
-              <p className="text-3xl font-bold text-red-400">
+              <p className="text-2xl font-bold text-red-400">
                 ${(datos.totalDeudaVencida || 0).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
               </p>
             </div>

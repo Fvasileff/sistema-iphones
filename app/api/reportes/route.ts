@@ -60,9 +60,13 @@ export async function GET(req: Request) {
     const totalDeudaVencida = cuotasVencidas.reduce((acc: number, c: { montoOriginal: unknown, montoMora: unknown }) => 
       acc + Number(c.montoOriginal) + Number(c.montoMora), 0)
 
+    const totalVentasMes = ventasDelMes.reduce((acc: number, v: { precioVenta: unknown }) =>
+      acc + Number(v.precioVenta), 0)
+
     return NextResponse.json({
       totalCobradoMes,
       totalDeudaVencida,
+      totalVentasMes,
       cuotasPagadas,
       cuotasVencidas,
       cuotasProximas,
