@@ -28,6 +28,7 @@ interface Venta {
     modelo: string
   }
   cliente: Cliente
+  cuotas: { estado: string; montoOriginal: number }[]
 }
 
 interface Reporte {
@@ -116,7 +117,11 @@ export default function ReportesPage() {
       setCargando(false)
     }
 
-  useEffect(() => { cargar() }, [tipoPeriodo, mes, anio])
+  useEffect(() => {
+  cargar()
+  const intervalo = setInterval(() => cargar(), 5 * 60 * 1000)
+  return () => clearInterval(intervalo)
+}, [tipoPeriodo, mes, anio])
 
   const meses = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
   const anosDisponibles = [hoy.getFullYear() - 2, hoy.getFullYear() - 1, hoy.getFullYear()]
@@ -244,31 +249,40 @@ export default function ReportesPage() {
               </div>
             </div>
           </div>
-  <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6">
-    <h2 className="text-white font-bold mb-4">📋 Detalle de Ventas ({obtenerTituloPeriodo()})</h2>
-    <div className="space-y-3">
-      {!datos.ventasDelMes || datos.ventasDelMes.length === 0 ? (
-        <p className="text-zinc-600 text-sm text-center py-8">No se registraron ventas en este período.</p>
-      ) : (
-        datos.ventasDelMes.map((v) => (
-          <div key={v.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-zinc-950 rounded-xl gap-2 border border-zinc-900 hover:border-zinc-800 transition-colors">
-            <div className="flex flex-col">
-              <span className="text-white font-bold text-sm">{v.cliente.apellido}, {v.cliente.nombre}</span>
-              <span className="text-zinc-400 text-xs mt-0.5">
-                {v.iphone.modelo} · {v.totalCuotas} cuotas {v.planPago.toLowerCase()}es
-              </span>
+     <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6">
+      <h2 className="text-white font-bold mb-4">📋 Detalle de Ventas ({obtenerTituloPeriodo()})</h2>
+      <div className="space-y-3">
+        {!datos.ventasDelMes || datos.ventasDelMes.length === 0 ? (
+          <p className="text-zinc-600 text-sm text-center py-8">No se registraron ventas en este período.</p>
+        ) : (
+          datos.ventasDelMes.map((v) => (
+            <div key={v.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-zinc-950 rounded-xl gap-2 border border-zinc-900 hover:border-zinc-800 transition-colors">
+              <div className="flex flex-col">
+                <span className="text-white font-bold text-sm">{v.cliente.apellido}, {v.cliente.nombre}</span>
+                <span className="text-zinc-400 text-xs mt-0.5">
+                  {v.iphone.modelo} · {v.totalCuotas} cuotas {v.planPago.toLowerCase()}es
+                </span>
+                <span className="text-xs mt-1">
+                  <span className="text-green-400">Pagadas: {v.cuotas.filter(c => c.estado === 'pagada').length}/{v.totalCuotas}</span>
+                  <span className="text-zinc-600"> · </span>
+                    {v.cuotas.filter(c => c.estado !== 'pagada').reduce((acc, c) => acc + Number(c.montoOriginal), 0) === 0 ? (
+                      <span className="text-green-400">✅ Pagado</span>
+                    ) : (
+                      <span className="text-red-400">Restante: ${v.cuotas.filter(c => c.estado !== 'pagada').reduce((acc, c) => acc + Number(c.montoOriginal), 0).toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
+                    )}
+                 </span>
+              </div>
+              <div className="flex justify-between sm:flex-col sm:items-end gap-1 items-center">
+                <span className="text-zinc-500 text-xs font-mono bg-zinc-900 px-2 py-0.5 rounded-md sm:bg-transparent sm:p-0">
+                  {new Date(v.fechaVenta).toLocaleDateString('es-AR')}
+                </span>
+                <span className="text-white font-bold">${Number(v.precioVenta).toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
+              </div>
             </div>
-            <div className="flex justify-between sm:flex-col sm:items-end gap-1 items-center">
-              <span className="text-zinc-500 text-xs font-mono bg-zinc-900 px-2 py-0.5 rounded-md sm:bg-transparent sm:p-0">
-                {new Date(v.fechaVenta).toLocaleDateString('es-AR')}
-              </span>
-              <span className="text-white font-bold">${Number(v.precioVenta).toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
-            </div>
-          </div>
-        ))
-      )}
+          ))
+        )}
+      </div>
     </div>
-  </div>
         </div>
       )}
     </div>
