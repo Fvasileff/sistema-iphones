@@ -1,8 +1,8 @@
-// middleware.ts
+// proxy.ts
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   // NextAuth guarda la sesión en una cookie. En desarrollo se suele llamar de estas formas:
   const token = 
     request.cookies.get('authjs.session-token') || 
