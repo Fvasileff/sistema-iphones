@@ -2,6 +2,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
+export const dynamic = 'force-dynamic'
 
 // Traer la lista de clientes
 export async function GET() {
