@@ -26,6 +26,7 @@ model iPhone {
   stock          Int     @default(1)
   activo         Boolean @default(true)
   ventas         Venta[]
+  ventasIphone   VentaIphone[]
 }
 
 model Cliente {
@@ -41,6 +42,7 @@ model Cliente {
   ventas         Venta[]         @relation("ClienteVentas")
   reparaciones   Reparacion[]
   ventasProducto VentaProducto[]
+  ventasIphone   VentaIphone[]
 }
 
 model Venta {
@@ -66,6 +68,27 @@ model Venta {
   motivoAnulacion   String?
   fechaAnulacion    DateTime?
   cuotas            Cuota[]
+}
+
+model VentaIphone {
+  id              String    @id @default(uuid())
+  codigoOperacion String    @unique
+  cliente         Cliente?  @relation(fields: [clienteId], references: [id])
+  clienteId       String?
+  iphone          iPhone    @relation(fields: [iphoneId], references: [id])
+  iphoneId        String
+  precioVenta     Decimal
+  metodoPago      String    @default("efectivo") // efectivo | transferencia | tarjeta
+  observaciones   String?
+  fechaVenta      DateTime  @default(now())
+  anulada         Boolean   @default(false)
+  motivoAnulacion String?
+  fechaAnulacion  DateTime?
+  createdAt       DateTime  @default(now())
+
+  @@index([fechaVenta])
+  @@index([clienteId])
+  @@index([iphoneId])
 }
 
 model Cuota {
@@ -169,6 +192,9 @@ model Reparacion {
   cliente             Cliente  @relation(fields: [clienteId], references: [id])
   clienteId           String
   equipo              String
+  marca               String?
+  modelo              String?
+  claveEquipo         String?
   imei                String?
   color               String?
   almacenamiento      String?

@@ -15,12 +15,21 @@ export const ventaProductoSchema = z.object({
   items: z.array(ventaProductoItemSchema).min(1, 'Agregá al menos un producto'),
 })
 
+export const ventaIphoneContadoSchema = z.object({
+  clienteId: z.string().uuid('Cliente inválido').optional().nullable(),
+  iphoneId: z.string().uuid('iPhone inválido'),
+  precioVenta: z.coerce.number().positive('El precio de venta debe ser mayor a 0'),
+  metodoPago: z.enum(METODOS_PAGO),
+  observaciones: textoOpcional(500),
+})
+
 export const ventaFinanciadaSchema = z.object({
   clienteId: z.string().uuid('Cliente inválido'),
   iphoneId: z.string().uuid('iPhone inválido'),
   precioVenta: z.coerce.number().positive('El precio de venta debe ser mayor a 0'),
   anticipoEfectivo: z.coerce.number().min(0, 'El anticipo no puede ser negativo').default(0),
   anticipoEquipo: z.coerce.number().min(0, 'El valor del equipo no puede ser negativo').default(0),
+  metodoAnticipo: z.enum(METODOS_PAGO).default('efectivo'),
   descripcionEquipo: textoOpcional(300),
   planPago: z.enum(['SEMANAL', 'QUINCENAL', 'MENSUAL']),
   totalCuotas: z.coerce.number().int().min(1, 'La cantidad de cuotas debe ser mayor a 0'),

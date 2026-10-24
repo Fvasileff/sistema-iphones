@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 
 
+type MetodoPago = 'efectivo' | 'transferencia' | 'tarjeta'
 type Cliente = { nombre: string; apellido: string }
 type Venta = { id: string; cliente: Cliente; fechaVenta: string }  // ✅ agregado fechaVenta
 type Cuota = {
@@ -355,16 +356,17 @@ function ModalPago({
 }: {
   cuota: Cuota
   onClose: () => void
-  onConfirm: () => Promise<void>
+  onConfirm: (metodoPago: MetodoPago) => Promise<void>
 }) {
   const [loading, setLoading] = useState(false)
+  const [metodoPago, setMetodoPago] = useState<MetodoPago>('efectivo')
   const montoOriginal = Number(cuota.montoOriginal)
   const montoMora     = Number(cuota.montoMora ?? 0)
   const total         = montoOriginal + montoMora
 
   const handleConfirm = async () => {
     setLoading(true)
-    await onConfirm()
+    await onConfirm(metodoPago)
     setLoading(false)
   }
 
@@ -391,6 +393,18 @@ function ModalPago({
             <span className="text-white text-base tabular-nums">${fmt(total)}</span>
           </div>
         </div>
+        <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-1.5">
+          Método de pago
+        </label>
+        <select
+          value={metodoPago}
+          onChange={e => setMetodoPago(e.target.value as MetodoPago)}
+          className="w-full mb-5 px-4 py-3 rounded-xl border border-zinc-700 bg-zinc-900 text-white text-base focus:outline-none focus:border-blue-500 transition-colors"
+        >
+          <option value="efectivo">Efectivo</option>
+          <option value="transferencia">Transferencia</option>
+          <option value="tarjeta">Tarjeta</option>
+        </select>
         <div className="flex gap-3">
           <button onClick={onClose} className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 py-3 rounded-xl text-sm transition">
             Cancelar
@@ -431,8 +445,6 @@ export default function CuotasPage() {
   const [cuotaMora, setCuotaMora] = useState<Cuota | null>(null)
   const [cuotaPago, setCuotaPago] = useState<Cuota | null>(null)
 
-  useEffect(() => { cargarCuotas() }, [])
-
   const cargarCuotas = () => {
     setCargando(true)
     fetch('/api/cuotas', { cache: 'no-store' })
@@ -440,6 +452,19 @@ export default function CuotasPage() {
       .then((data: Cuota[]) => { setCuotas(data); setCargando(false) })
       .catch(() => setCargando(false))
   }
+
+  useEffect(() => {
+    let activo = true
+    fetch('/api/cuotas', { cache: 'no-store' })
+      .then(r => r.json())
+      .then((data: Cuota[]) => {
+        if (activo) { setCuotas(data); setCargando(false) }
+      })
+      .catch(() => {
+        if (activo) setCargando(false)
+      })
+    return () => { activo = false }
+  }, [])
 
   const cuotasBuscadas = cuotas.filter(c => {
     const completo = `${c.venta.cliente.nombre} ${c.venta.cliente.apellido}`.toLowerCase()
@@ -471,15 +496,21 @@ export default function CuotasPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ porcentaje: pct }),
     })
+    const data = (await res.json().catch(() => ({}))) as { error?: string }
     if (res.ok) { setCuotaMora(null); cargarCuotas() }
-    else alert('Error al aplicar mora')
+    else alert(data.error || 'Error al aplicar mora')
   }
 
-  const handlePago = async () => {
+  const handlePago = async (metodoPago: MetodoPago) => {
     if (!cuotaPago) return
-    const res = await fetch(`/api/cuotas/${cuotaPago.id}/pagar`, { method: 'POST' })
+    const res = await fetch(`/api/cuotas/${cuotaPago.id}/pagar`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ metodoPago }),
+    })
+    const data = (await res.json().catch(() => ({}))) as { error?: string }
     if (res.ok) { setCuotaPago(null); cargarCuotas() }
-    else alert('Error al registrar el pago')
+    else alert(data.error || 'Error al registrar el pago')
   }
 
   return (

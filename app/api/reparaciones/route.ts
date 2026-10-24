@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { requerirSesion } from '@/lib/api-auth'
+import { registrarMovimientoCaja } from '@/lib/caja'
 import { ESTADOS_REPARACION } from '@/lib/constantes'
 import { ErrorApi, manejarErrorApi } from '@/lib/errores'
 import { rangoFechasAR } from '@/lib/fechas'
@@ -82,11 +83,14 @@ export async function POST(request: Request) {
 
       const codigoOperacion = await generarCodigoOperacion(tx)
 
-      return tx.reparacion.create({
+      const creada = await tx.reparacion.create({
         data: {
           codigoOperacion,
           clienteId: data.clienteId,
           equipo: data.equipo,
+          marca: data.marca,
+          modelo: data.modelo,
+          claveEquipo: data.claveEquipo,
           imei: data.imei,
           color: data.color,
           almacenamiento: data.almacenamiento,
@@ -106,6 +110,36 @@ export async function POST(request: Request) {
         },
         include: includeReparacion,
       })
+
+      if (data.sena > 0) {
+        const codigoPago = await generarCodigoOperacion(tx)
+        const pago = await tx.pagoReparacion.create({
+          data: {
+            codigoOperacion: codigoPago,
+            reparacionId: creada.id,
+            monto: data.sena,
+            metodoPago: data.metodoPago,
+            concepto: 'Seña',
+          },
+        })
+
+        await registrarMovimientoCaja(tx, {
+          tipo: 'cobro_reparacion',
+          metodoPago: data.metodoPago,
+          monto: data.sena,
+          descripcion: `Seña reparación ${codigoOperacion}`,
+          codigoOperacion: codigoPago,
+          referenciaTipo: 'pago_reparacion',
+          referenciaId: pago.id,
+        })
+
+        return tx.reparacion.findUniqueOrThrow({
+          where: { id: creada.id },
+          include: includeReparacion,
+        })
+      }
+
+      return creada
     })
 
     return NextResponse.json(reparacion, { status: 201 })

@@ -84,7 +84,7 @@ export async function POST(request: Request) {
       if (data.anticipoEfectivo > 0) {
         await registrarMovimientoCaja(tx, {
           tipo: 'venta_financiada',
-          metodoPago: 'efectivo',
+          metodoPago: data.metodoAnticipo,
           monto: data.anticipoEfectivo,
           descripcion: `Anticipo financiación ${codigoOperacion}`,
           codigoOperacion,

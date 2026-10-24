@@ -6,19 +6,25 @@ import { signOut } from 'next-auth/react'
 import { useState } from 'react'
 
 const links = [
-  { name: 'Inicio',    href: '/admin',           icon: '🏠' },
-  { name: 'Ventas',    href: '/admin/ventas',     icon: '💰' },
-  { name: 'Cuotas',   href: '/admin/cuotas',     icon: '📅' },
-  { name: 'Reportes', href: '/admin/reportes',   icon: '📊' },
-  { name: 'Clientes', href: '/admin/clientes',   icon: '👥' },
-  { name: 'iPhones',  href: '/admin/iphones',    icon: '📱' },
+  { name: 'Inicio',      href: '/admin',              icon: '🏠' },
+  { name: 'Ventas',      href: '/admin/ventas',        icon: '💰' },
+  { name: 'Cuotas',      href: '/admin/cuotas',        icon: '📅' },
+  { name: 'POS',         href: '/admin/pos',           icon: '🧾' },
+  { name: 'Reparaciones',href: '/admin/reparaciones',  icon: '🔧' },
+  { name: 'Caja',        href: '/admin/caja',          icon: '💵' },
+  { name: 'Inventario',  href: '/admin/inventario',    icon: '📦' },
+  { name: 'Reportes',    href: '/admin/reportes',      icon: '📊' },
+  { name: 'Clientes',    href: '/admin/clientes',      icon: '👥' },
+  { name: 'iPhones',     href: '/admin/iphones',       icon: '📱' },
 ]
 
 function NavLinks({ pathname, onNavigate }: { pathname: string; onNavigate?: () => void }) {
   return (
     <>
       {links.map((link) => {
-        const active = pathname === link.href
+        const active =
+          pathname === link.href ||
+          (link.href !== '/admin' && pathname.startsWith(`${link.href}/`))
         return (
           <Link
             key={link.name}

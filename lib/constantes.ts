@@ -1,5 +1,11 @@
-export const METODOS_PAGO = ['efectivo', 'transferencia'] as const
+export const METODOS_PAGO = ['efectivo', 'transferencia', 'tarjeta'] as const
 export type MetodoPago = (typeof METODOS_PAGO)[number]
+
+export const ETIQUETAS_METODO_PAGO: Record<MetodoPago, string> = {
+  efectivo: 'Efectivo',
+  transferencia: 'Transferencia',
+  tarjeta: 'Tarjeta',
+}
 
 export const CATEGORIAS_PRODUCTO = ['repuesto', 'accesorio'] as const
 export type CategoriaProducto = (typeof CATEGORIAS_PRODUCTO)[number]
@@ -35,6 +41,7 @@ export const TIPOS_MOVIMIENTO_CAJA = [
   'venta_financiada',
   'cobro_cuota',
   'venta_producto',
+  'venta_iphone',
   'cobro_reparacion',
   'ingreso',
   'egreso',

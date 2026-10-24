@@ -12,15 +12,16 @@ interface Cliente {
 interface iPhone {
   id: string
   modelo: string
-  variante: string
+  variante: string | null
   almacenamiento: string
   color: string
   stock: number
-  precioBase: number // 🚀 CORREGIDO: Coincide con tu esquema de Prisma
+  precioBase: number
+  activo?: boolean
 }
 
 // Helper para formatear en pesos de forma limpia sin centavos
-const formatARS = (monto: any) => {
+const formatARS = (monto: unknown) => {
   if (monto === undefined || monto === null || isNaN(Number(monto))) {
     return '$ 0'
   }
@@ -134,11 +135,12 @@ export default function RegistrarVentaPage() {
   const [iphoneId, setIphoneId] = useState('')
   const [precioVenta, setPrecioVenta] = useState('')
   const [anticipoEfectivo, setAnticipoEfectivo] = useState('0')
+  const [metodoAnticipo, setMetodoAnticipo] = useState('efectivo')
   const [anticipoEquipo, setAnticipoEquipo] = useState('0')
   const [descripcionEquipo, setDescripcionEquipo] = useState('')
   const [planPago, setPlanPago] = useState('SEMANAL')
   const [totalCuotas, setTotalCuotas] = useState(8)
-  const [montoCuota, setMontoCuota] = useState('')
+  const [montoCuotaManual, setMontoCuotaManual] = useState('')
   const [interesPct, setInteresPct] = useState('0')
   const [fechaPrimeraCuota, setFechaPrimeraCuota] = useState('')
 
@@ -147,6 +149,15 @@ export default function RegistrarVentaPage() {
 
   const iphoneSeleccionado = iphones.find(i => i.id === iphoneId)
   const sinStock = iphoneSeleccionado ? iphoneSeleccionado.stock <= 0 : false
+  const precio = parseFloat(precioVenta) || 0
+  const anticipo = (parseFloat(anticipoEfectivo) || 0) + (parseFloat(anticipoEquipo) || 0)
+  const saldo = precio - anticipo
+  const interes = parseFloat(interesPct) || 0
+  const montoCuotaCalculado =
+    saldo > 0 && totalCuotas > 0
+      ? (saldo * (1 + interes / 100) / totalCuotas).toFixed(2)
+      : ''
+  const montoCuota = montoCuotaManual || montoCuotaCalculado
 
   useEffect(() => {
     const cargarDatos = async () => {
@@ -157,8 +168,8 @@ export default function RegistrarVentaPage() {
         ])
         if (resClientes.ok) setClientes(await resClientes.json())
         if (resIphones.ok) {
-          const lista = await resIphones.json()
-          setIphones(lista.filter((i: any) => i.activo !== false))
+          const lista = (await resIphones.json()) as iPhone[]
+          setIphones(lista.filter(i => i.activo !== false))
         }
       } catch (error) {
         console.error('Error al cargar datos iniciales:', error)
@@ -166,18 +177,6 @@ export default function RegistrarVentaPage() {
     }
     cargarDatos()
   }, [])
-
-  useEffect(() => {
-    const precio = parseFloat(precioVenta) || 0
-    const anticipo = (parseFloat(anticipoEfectivo) || 0) + (parseFloat(anticipoEquipo) || 0)
-    const saldo = precio - anticipo
-    const interes = parseFloat(interesPct) || 0
-    if (saldo > 0 && totalCuotas > 0) {
-      setMontoCuota((saldo * (1 + interes / 100) / totalCuotas).toFixed(2))
-    } else {
-      setMontoCuota('')
-    }
-  }, [precioVenta, anticipoEfectivo, anticipoEquipo, totalCuotas, interesPct])
 
   const handlePlanChange = (tipo: string) => {
     setPlanPago(tipo)
@@ -193,6 +192,7 @@ export default function RegistrarVentaPage() {
     if (seleccionado) {
       setPrecioVenta(String(seleccionado.precioBase))
     }
+    setMontoCuotaManual('')
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -204,24 +204,23 @@ export default function RegistrarVentaPage() {
       const res = await fetch('/api/ventas', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clienteId, iphoneId, precioVenta, anticipoEfectivo, anticipoEquipo, descripcionEquipo, planPago, totalCuotas, montoCuota, interesPct, fechaPrimeraCuota })
+        body: JSON.stringify({ clienteId, iphoneId, precioVenta, anticipoEfectivo, metodoAnticipo, anticipoEquipo, descripcionEquipo, planPago, totalCuotas, montoCuota, interesPct, fechaPrimeraCuota })
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Error al procesar la venta')
       setMensaje({ texto: '¡Financiación registrada y cuotas generadas con éxito!', tipo: 'success' })
       setClienteId(''); setIphoneId(''); setPrecioVenta('')
-      setAnticipoEfectivo('0'); setAnticipoEquipo('0'); setDescripcionEquipo('')
-      setMontoCuota(''); setInteresPct('0'); setFechaPrimeraCuota('')
-    } catch (error: any) {
-      setMensaje({ texto: error.message, tipo: 'error' })
+      setAnticipoEfectivo('0'); setMetodoAnticipo('efectivo'); setAnticipoEquipo('0'); setDescripcionEquipo('')
+      setMontoCuotaManual(''); setInteresPct('0'); setFechaPrimeraCuota('')
+    } catch (error) {
+      setMensaje({
+        texto: error instanceof Error ? error.message : 'Error al procesar la venta',
+        tipo: 'error',
+      })
     } finally {
       setCargando(false)
     }
   }
-
-  const precio = parseFloat(precioVenta) || 0
-  const anticipo = (parseFloat(anticipoEfectivo) || 0) + (parseFloat(anticipoEquipo) || 0)
-  const saldo = precio - anticipo
 
   return (
     <div className="p-4 md:p-8 max-w-4xl mx-auto">
@@ -277,16 +276,25 @@ export default function RegistrarVentaPage() {
             <Field label="Precio Final Pactado" required>
               <input type="number" step="any" value={precioVenta} onChange={e => setPrecioVenta(e.target.value)} required placeholder="0" className={inputClass} />
             </Field>
-            <Field label="Anticipo Efectivo">
+            <Field label="Anticipo">
               <input type="number" step="any" value={anticipoEfectivo} onChange={e => setAnticipoEfectivo(e.target.value)} className={inputClass} />
             </Field>
             <Field label="Valor Equipo Tomado">
               <input type="number" step="any" value={anticipoEquipo} onChange={e => setAnticipoEquipo(e.target.value)} className={inputClass} />
             </Field>
           </div>
-          <Field label="Descripción del Equipo (opcional)">
-            <input type="text" value={descripcionEquipo} onChange={e => setDescripcionEquipo(e.target.value)} placeholder="Ej: iPhone 13 negro 128GB" className={inputClass} />
-          </Field>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Field label="Método del anticipo">
+              <select value={metodoAnticipo} onChange={e => setMetodoAnticipo(e.target.value)} className={inputClass}>
+                <option value="efectivo">Efectivo</option>
+                <option value="transferencia">Transferencia</option>
+                <option value="tarjeta">Tarjeta</option>
+              </select>
+            </Field>
+            <Field label="Descripción del Equipo (opcional)">
+              <input type="text" value={descripcionEquipo} onChange={e => setDescripcionEquipo(e.target.value)} placeholder="Ej: iPhone 13 negro 128GB" className={inputClass} />
+            </Field>
+          </div>
         </div>
 
         <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-4">
@@ -323,7 +331,7 @@ export default function RegistrarVentaPage() {
               />
             </Field>
             <Field label="Valor de Cuota" required>
-              <input type="number" step="any" value={montoCuota} onChange={e => setMontoCuota(e.target.value)} required placeholder="Auto" className={inputClass} />
+              <input type="number" step="any" value={montoCuota} onChange={e => setMontoCuotaManual(e.target.value)} required placeholder="Auto" className={inputClass} />
             </Field>
           </div>
 

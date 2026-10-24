@@ -2,10 +2,7 @@ import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { fechaDiaAR } from '@/lib/fechas'
 import { aNumero } from '@/lib/format'
-import { ErrorApi } from '@/lib/errores'
 import type { MetodoPago, TipoMovimientoCaja } from '@/lib/constantes'
-
-export const MENSAJE_CAJA_CERRADA = 'La caja está cerrada. Abrila para poder cobrar.'
 
 interface MovimientoResumen {
   metodoPago: string
@@ -28,6 +25,7 @@ export function calcularTotalesCaja(movimientos: MovimientoResumen[]) {
   const totales = {
     efectivo: 0,
     transferencia: 0,
+    tarjeta: 0,
     porTipo: {} as Record<string, number>,
   }
 
@@ -37,6 +35,7 @@ export function calcularTotalesCaja(movimientos: MovimientoResumen[]) {
 
     if (movimiento.metodoPago === 'efectivo') totales.efectivo += monto
     if (movimiento.metodoPago === 'transferencia') totales.transferencia += monto
+    if (movimiento.metodoPago === 'tarjeta') totales.tarjeta += monto
 
     totales.porTipo[movimiento.tipo] = (totales.porTipo[movimiento.tipo] ?? 0) + monto
   }
@@ -57,12 +56,34 @@ export async function obtenerCajaHoy() {
 }
 
 export async function obtenerCajaHoyTx(tx: Prisma.TransactionClient) {
-  const caja = await tx.cajaDiaria.findUnique({
-    where: { fechaDia: fechaDiaAR() },
-  })
+  const fechaDia = fechaDiaAR()
+  const caja = await tx.cajaDiaria.findUnique({ where: { fechaDia } })
 
-  if (!caja || caja.estado !== 'abierta') {
-    throw new ErrorApi(MENSAJE_CAJA_CERRADA, 409)
+  if (!caja) {
+    return tx.cajaDiaria.create({
+      data: {
+        fechaDia,
+        montoInicial: 0,
+        estado: 'abierta',
+      },
+    })
+  }
+
+  if (caja.estado !== 'abierta') {
+    return tx.cajaDiaria.update({
+      where: { id: caja.id },
+      data: {
+        estado: 'abierta',
+        cerradaAt: null,
+        montoEsperadoEfectivo: null,
+        montoContadoEfectivo: null,
+        diferenciaEfectivo: null,
+        montoEsperadoTransferencia: null,
+        montoContadoTransferencia: null,
+        diferenciaTransferencia: null,
+        observaciones: null,
+      },
+    })
   }
 
   return caja
@@ -125,16 +146,7 @@ export async function revertirMovimientoCaja(
     })
   }
 
-  const cajaActual = await tx.cajaDiaria.findUnique({
-    where: { fechaDia: fechaDiaAR() },
-  })
-
-  if (!cajaActual || cajaActual.estado !== 'abierta') {
-    throw new ErrorApi(
-      'La caja original está cerrada y no hay una caja abierta para registrar el ajuste.',
-      409,
-    )
-  }
+  const cajaActual = await obtenerCajaHoyTx(tx)
 
   return tx.movimientoCaja.create({
     data: {

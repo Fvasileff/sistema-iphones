@@ -18,13 +18,15 @@ export async function GET() {
     if (!caja) {
       return NextResponse.json({
         caja: null,
+        estado: 'sin_caja',
         abierta: false,
-        totales: { efectivo: 0, transferencia: 0, porTipo: {} },
+        totales: { efectivo: 0, transferencia: 0, tarjeta: 0, porTipo: {} },
       })
     }
 
     return NextResponse.json({
       caja,
+      estado: caja.estado,
       abierta: caja.estado === 'abierta',
       totales: {
         ...calcularTotalesCaja(caja.movimientos),
