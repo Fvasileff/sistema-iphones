@@ -7,63 +7,65 @@ datasource db {
 }
 
 model Usuario {
-  id         String   @id @default(uuid())
-  nombre     String
-  email      String   @unique
-  password   String
-  rol        String   @default("vendedor")
-  createdAt  DateTime @default(now())
-  ventas     Venta[]
+  id        String   @id @default(uuid())
+  nombre    String
+  email     String   @unique
+  password  String
+  rol       String   @default("vendedor")
+  createdAt DateTime @default(now())
+  ventas    Venta[]
 }
 
 model iPhone {
-  id              String   @id @default(uuid())
-  modelo          String
-  variante        String?  // Lo dejamos opcional con un "?" por si la API vieja lo busca
-  color           String
-  almacenamiento  String
-  precioBase      Decimal
-  stock           Int      @default(1) // <-- Agregamos el stock numérico
-  ventas          Venta[]
+  id             String  @id @default(uuid())
+  modelo         String
+  variante       String?
+  color          String
+  almacenamiento String
+  precioBase     Decimal
+  stock          Int     @default(1)
+  activo         Boolean @default(true)
+  ventas         Venta[]
 }
+
 model Cliente {
   id        String   @id @default(uuid())
   nombre    String
   apellido  String
   dni       String   @unique
   telefono  String
-  email     String?    
+  email     String?
   direccion String?
   createdAt DateTime @default(now())
-  
-  // Le damos un nombre a la relación: "ClienteVentas"
-  ventas    Venta[]  @relation("ClienteVentas")
+
+  ventas         Venta[]         @relation("ClienteVentas")
+  reparaciones   Reparacion[]
+  ventasProducto VentaProducto[]
 }
 
 model Venta {
-  id                 String   @id @default(uuid())
-  
-  // Usamos el mismo nombre de relación aquí
-  cliente            Cliente  @relation("ClienteVentas", fields: [clienteId], references: [id])
-  clienteId          String   
-  
-  iphone             iPhone   @relation(fields: [iphoneId], references: [id])
-  iphoneId           String
-  
-  usuario            Usuario  @relation(fields: [usuarioId], references: [id])
-  usuarioId          String
-  
-  precioVenta        Decimal
-  anticipoEfectivo   Decimal  @default(0)
-  anticipoEquipo     Decimal  @default(0)
-  descripcionEquipo  String?
-  planPago           String
-  totalCuotas        Int
-  montoCuota         Decimal
-  interesPct         Decimal
-  estado             String   @default("activa")
-  fechaVenta         DateTime @default(now())
-  cuotas             Cuota[]
+  id                String   @id @default(uuid())
+  cliente           Cliente  @relation("ClienteVentas", fields: [clienteId], references: [id])
+  clienteId         String
+  iphone            iPhone   @relation(fields: [iphoneId], references: [id])
+  iphoneId          String
+  usuario           Usuario  @relation(fields: [usuarioId], references: [id])
+  usuarioId         String
+  precioVenta       Decimal
+  anticipoEfectivo  Decimal  @default(0)
+  anticipoEquipo    Decimal  @default(0)
+  descripcionEquipo String?
+  planPago          String
+  totalCuotas       Int
+  montoCuota        Decimal
+  interesPct        Decimal
+  estado            String   @default("activa")
+  fechaVenta        DateTime @default(now())
+  codigoOperacion   String?  @unique
+  anulada           Boolean  @default(false)
+  motivoAnulacion   String?
+  fechaAnulacion    DateTime?
+  cuotas            Cuota[]
 }
 
 model Cuota {
@@ -76,11 +78,226 @@ model Cuota {
   fechaVencimiento DateTime
   fechaPago        DateTime?
   estado           String    @default("pendiente")
+  pagos            PagoCuota[]
 }
 
 model Configuracion {
-  id          String @id @default(uuid())
-  clave       String @unique
+  id          String  @id @default(uuid())
+  clave       String  @unique
   valor       String
   descripcion String?
+}
+
+model Secuencia {
+  clave String @id
+  valor Int    @default(0)
+}
+
+model Producto {
+  id           String   @id @default(uuid())
+  nombre       String
+  descripcion  String?
+  categoria    String   @default("accesorio") // repuesto | accesorio
+  sku          String?  @unique
+  precioCompra Decimal  @default(0)
+  precioVenta  Decimal
+  stock        Int      @default(0)
+  stockMinimo  Int      @default(0)
+  activo       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  movimientos     MovimientoStock[]
+  ventaItems      VentaProductoItem[]
+  reparacionItems ReparacionProducto[]
+
+  @@index([categoria, activo])
+  @@index([stock])
+}
+
+model MovimientoStock {
+  id             String   @id @default(uuid())
+  producto       Producto @relation(fields: [productoId], references: [id])
+  productoId     String
+  tipo           String   // ingreso | egreso | ajuste | venta | reparacion | anulacion
+  cantidad       Int      // delta con signo
+  motivo         String?
+  referenciaTipo String?
+  referenciaId   String?
+  createdAt      DateTime @default(now())
+
+  @@index([productoId, createdAt])
+}
+
+model VentaProducto {
+  id              String   @id @default(uuid())
+  codigoOperacion String   @unique
+  cliente         Cliente? @relation(fields: [clienteId], references: [id])
+  clienteId       String?
+  total           Decimal
+  metodoPago      String   @default("efectivo") // efectivo | transferencia
+  observaciones   String?
+  fechaVenta      DateTime @default(now())
+  anulada         Boolean  @default(false)
+  motivoAnulacion String?
+  fechaAnulacion  DateTime?
+  createdAt       DateTime @default(now())
+
+  items VentaProductoItem[]
+
+  @@index([fechaVenta])
+  @@index([clienteId])
+}
+
+model VentaProductoItem {
+  id             String        @id @default(uuid())
+  venta          VentaProducto @relation(fields: [ventaId], references: [id])
+  ventaId        String
+  producto       Producto      @relation(fields: [productoId], references: [id])
+  productoId     String
+  cantidad       Int
+  precioUnitario Decimal
+  subtotal       Decimal
+
+  @@index([ventaId])
+  @@index([productoId])
+}
+
+model Reparacion {
+  id                  String   @id @default(uuid())
+  codigoOperacion     String   @unique
+  cliente             Cliente  @relation(fields: [clienteId], references: [id])
+  clienteId           String
+  equipo              String
+  imei                String?
+  color               String?
+  almacenamiento      String?
+  accesoriosRecibidos String?
+  estadoFisico        String?
+  falla               String
+  diagnostico         String?
+  presupuesto         Decimal  @default(0)
+  montoFinal          Decimal?
+  estado              String   @default("recibido")
+  fechaIngreso        DateTime @default(now())
+  fechaPromesa        DateTime?
+  fechaEntrega        DateTime?
+  observaciones       String?
+  anulada             Boolean  @default(false)
+  motivoAnulacion     String?
+  fechaAnulacion      DateTime?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  repuestos ReparacionProducto[]
+  pagos     PagoReparacion[]
+  historial HistorialReparacion[]
+
+  @@index([estado, fechaIngreso])
+  @@index([clienteId])
+}
+
+model HistorialReparacion {
+  id             String     @id @default(uuid())
+  reparacion     Reparacion @relation(fields: [reparacionId], references: [id])
+  reparacionId   String
+  estadoAnterior String?
+  estadoNuevo    String
+  nota           String?
+  fecha          DateTime   @default(now())
+
+  @@index([reparacionId, fecha])
+}
+
+model ReparacionProducto {
+  id              String     @id @default(uuid())
+  reparacion      Reparacion @relation(fields: [reparacionId], references: [id])
+  reparacionId    String
+  producto        Producto   @relation(fields: [productoId], references: [id])
+  productoId      String
+  cantidad        Int
+  precioUnitario  Decimal
+  subtotal        Decimal
+  anulada         Boolean    @default(false)
+  motivoAnulacion String?
+  fechaAnulacion  DateTime?
+  createdAt       DateTime   @default(now())
+
+  @@index([reparacionId])
+  @@index([productoId])
+}
+
+model PagoReparacion {
+  id              String     @id @default(uuid())
+  codigoOperacion String     @unique
+  reparacion      Reparacion @relation(fields: [reparacionId], references: [id])
+  reparacionId    String
+  monto           Decimal
+  metodoPago      String     @default("efectivo")
+  concepto        String?
+  fecha           DateTime   @default(now())
+  observaciones   String?
+  anulada         Boolean    @default(false)
+  motivoAnulacion String?
+  fechaAnulacion  DateTime?
+
+  @@index([reparacionId, fecha])
+}
+
+model PagoCuota {
+  id              String   @id @default(uuid())
+  codigoOperacion String   @unique
+  cuota           Cuota    @relation(fields: [cuotaId], references: [id])
+  cuotaId         String
+  monto           Decimal
+  montoMora       Decimal  @default(0)
+  metodoPago      String   @default("efectivo")
+  fecha           DateTime @default(now())
+  observaciones   String?
+  anulada         Boolean  @default(false)
+  motivoAnulacion String?
+  fechaAnulacion  DateTime?
+
+  @@index([cuotaId, fecha])
+}
+
+model CajaDiaria {
+  id                         String   @id @default(uuid())
+  fechaDia                   DateTime @unique
+  montoInicial               Decimal  @default(0)
+  estado                     String   @default("abierta") // abierta | cerrada
+  abiertaAt                  DateTime @default(now())
+  cerradaAt                  DateTime?
+  montoEsperadoEfectivo      Decimal?
+  montoContadoEfectivo       Decimal?
+  diferenciaEfectivo         Decimal?
+  montoEsperadoTransferencia Decimal?
+  montoContadoTransferencia  Decimal?
+  diferenciaTransferencia    Decimal?
+  observaciones              String?
+  createdAt                  DateTime @default(now())
+
+  movimientos MovimientoCaja[]
+
+  @@index([estado])
+}
+
+model MovimientoCaja {
+  id              String     @id @default(uuid())
+  caja            CajaDiaria @relation(fields: [cajaId], references: [id])
+  cajaId          String
+  tipo            String     // venta_financiada | cobro_cuota | venta_producto | cobro_reparacion | ingreso | egreso | ajuste | anulacion
+  metodoPago      String     @default("efectivo") // efectivo | transferencia
+  monto           Decimal
+  descripcion     String?
+  codigoOperacion String?
+  referenciaTipo  String?
+  referenciaId    String?
+  createdAt       DateTime   @default(now())
+  anulada         Boolean    @default(false)
+  motivoAnulacion String?
+  fechaAnulacion  DateTime?
+
+  @@index([cajaId, metodoPago])
+  @@index([codigoOperacion])
 }

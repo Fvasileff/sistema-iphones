@@ -1,95 +1,122 @@
-import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
-import { auth } from '@/lib/auth';
-import { whatsappNuevaFinanciacion } from '@/utils/whatsapp';
-
+import { NextResponse } from 'next/server'
+import { prisma } from '@/lib/prisma'
+import { auth } from '@/lib/auth'
+import { registrarMovimientoCaja } from '@/lib/caja'
+import { ErrorApi, manejarErrorApi } from '@/lib/errores'
+import { parseFechaAR, sumarDiasAR } from '@/lib/fechas'
+import { generarCodigoOperacion } from '@/lib/operaciones'
+import { ventaFinanciadaSchema } from '@/lib/validaciones/ventas'
+import { whatsappNuevaFinanciacion } from '@/utils/whatsapp'
 
 export const dynamic = 'force-dynamic'
 
 export async function POST(request: Request) {
   try {
-    const session = await auth(); 
-    
+    const session = await auth()
+
     if (!session || !session.user?.email) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+      return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
     }
 
     const usuario = await prisma.usuario.findUnique({
-      where: { email: session.user.email as string }
-    });
+      where: { email: session.user.email },
+    })
 
     if (!usuario) {
-      return NextResponse.json({ error: "Usuario no encontrado" }, { status: 404 });
+      return NextResponse.json({ error: 'Usuario no encontrado' }, { status: 404 })
     }
 
-    const body = await request.json();
-    const { 
-      clienteId, iphoneId, precioVenta, anticipoEfectivo, 
-      anticipoEquipo, descripcionEquipo, planPago, totalCuotas, 
-      montoCuota, interesPct, fechaPrimeraCuota
-    } = body;
+    const data = ventaFinanciadaSchema.parse(await request.json())
 
-    const resultado = await prisma.$transaction(async (tx: any) => {
+    let fechaPrimeraCuota: Date
+    try {
+      fechaPrimeraCuota = parseFechaAR(data.fechaPrimeraCuota)
+    } catch (error) {
+      throw new ErrorApi(error instanceof Error ? error.message : 'Fecha inválida', 400)
+    }
+
+    const dias = data.planPago === 'SEMANAL' ? 7 : data.planPago === 'QUINCENAL' ? 15 : 30
+
+    const resultado = await prisma.$transaction(async tx => {
+      const [cliente, iphone] = await Promise.all([
+        tx.cliente.findUnique({ where: { id: data.clienteId } }),
+        tx.iPhone.findUnique({ where: { id: data.iphoneId } }),
+      ])
+
+      if (!cliente) throw new ErrorApi('Cliente no encontrado', 404)
+      if (!iphone) throw new ErrorApi('iPhone no encontrado', 404)
+      if (iphone.stock <= 0) throw new ErrorApi('El iPhone no tiene stock disponible', 409)
+
+      const codigoOperacion = await generarCodigoOperacion(tx)
+
       const nuevaVenta = await tx.venta.create({
         data: {
-          cliente: { connect: { id: clienteId } },
-          iphone: { connect: { id: iphoneId } },
-          usuario: { connect: { id: usuario.id } },
-          precioVenta: parseFloat(precioVenta),
-          anticipoEfectivo: parseFloat(anticipoEfectivo || 0),
-          anticipoEquipo: parseFloat(anticipoEquipo || 0),
-          descripcionEquipo: descripcionEquipo || "",
-          planPago: planPago,
-          totalCuotas: parseInt(totalCuotas),
-          montoCuota: parseFloat(montoCuota),
-          interesPct: parseFloat(interesPct),
-        }
-      });
+          clienteId: cliente.id,
+          iphoneId: iphone.id,
+          usuarioId: usuario.id,
+          precioVenta: data.precioVenta,
+          anticipoEfectivo: data.anticipoEfectivo,
+          anticipoEquipo: data.anticipoEquipo,
+          descripcionEquipo: data.descripcionEquipo,
+          planPago: data.planPago,
+          totalCuotas: data.totalCuotas,
+          montoCuota: data.montoCuota,
+          interesPct: data.interesPct,
+          codigoOperacion,
+        },
+      })
 
-      const cuotasData = [];
-      const dias = planPago === 'SEMANAL' ? 7 : planPago === 'QUINCENAL' ? 15 : 30;
-      const [anio, mes, dia] = fechaPrimeraCuota.split('-').map(Number)
-
-      for (let i = 1; i <= parseInt(totalCuotas); i++) {
-        const fechaVenc = new Date(anio, mes - 1, dia + ((i - 1) * dias))
-        cuotasData.push({
+      await tx.cuota.createMany({
+        data: Array.from({ length: data.totalCuotas }, (_, indice) => ({
           ventaId: nuevaVenta.id,
-          numeroCuota: i,
-          montoOriginal: parseFloat(montoCuota),
-          fechaVencimiento: fechaVenc,
-          estado: "pendiente"
-        });
-      }
-      await tx.cuota.createMany({ data: cuotasData });
+          numeroCuota: indice + 1,
+          montoOriginal: data.montoCuota,
+          fechaVencimiento: sumarDiasAR(fechaPrimeraCuota, indice * dias),
+          estado: 'pendiente',
+        })),
+      })
 
       await tx.iPhone.update({
-        where: { id: iphoneId },
-        data: { stock: { decrement: 1 } }
-      });
+        where: { id: iphone.id },
+        data: { stock: { decrement: 1 } },
+      })
 
-      return nuevaVenta;
-    });
+      if (data.anticipoEfectivo > 0) {
+        await registrarMovimientoCaja(tx, {
+          tipo: 'venta_financiada',
+          metodoPago: 'efectivo',
+          monto: data.anticipoEfectivo,
+          descripcion: `Anticipo financiación ${codigoOperacion}`,
+          codigoOperacion,
+          referenciaTipo: 'venta',
+          referenciaId: nuevaVenta.id,
+        })
+      }
+
+      return nuevaVenta
+    })
 
     try {
-      const cliente = await prisma.cliente.findUnique({ where: { id: clienteId } });
-      const iphone = await prisma.iPhone.findUnique({ where: { id: iphoneId } });
+      const [cliente, iphone] = await Promise.all([
+        prisma.cliente.findUnique({ where: { id: data.clienteId } }),
+        prisma.iPhone.findUnique({ where: { id: data.iphoneId } }),
+      ])
 
       if (cliente && iphone) {
         await whatsappNuevaFinanciacion(
           cliente.telefono,
           `${cliente.nombre} ${cliente.apellido}`,
           `${iphone.modelo} ${iphone.almacenamiento}`,
-          parseInt(totalCuotas),
-          parseFloat(montoCuota)
+          data.totalCuotas,
+          data.montoCuota,
         )
       }
-    } catch (wpError) {
-      console.error('Error enviando WhatsApp de bienvenida:', wpError)
+    } catch (error) {
+      console.error('Error enviando WhatsApp de bienvenida:', error)
     }
 
-    return NextResponse.json(resultado, { status: 201 });
+    return NextResponse.json(resultado, { status: 201 })
   } catch (error) {
-    console.error("Error en API Ventas:", error);
-    return NextResponse.json({ error: "No se pudo registrar la venta" }, { status: 500 });
+    return manejarErrorApi(error)
   }
 }

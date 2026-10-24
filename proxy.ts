@@ -25,5 +25,15 @@ export function proxy(request: NextRequest) {
 
 // Configuración de rutas a interceptar
 export const config = {
-  matcher: ['/admin/:path*', '/api/iphones/:path*', '/api/clientes/:path*'],
+  matcher: [
+    '/admin/:path*',
+    '/api/iphones/:path*',
+    '/api/clientes/:path*',
+    '/api/productos/:path*',
+    '/api/ventas-productos/:path*',
+    '/api/reparaciones/:path*',
+    '/api/caja/:path*',
+    '/api/ventas/:path*',
+    '/api/cuotas/:path*',
+  ],
 }
