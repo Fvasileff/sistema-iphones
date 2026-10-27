@@ -1,20 +1,23 @@
-import type { Prisma } from '@prisma/client'
+import type { CajaDiaria, Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
-import { fechaDiaAR } from '@/lib/fechas'
-import { aNumero } from '@/lib/format'
-import type { MetodoPago, TipoMovimientoCaja } from '@/lib/constantes'
+import { fechaDiaAR, formatFechaHoraAR } from '@/lib/fechas'
+import { aNumero, formatARS } from '@/lib/format'
+import { desglosarPagos, type PagoDetalle } from '@/lib/pagos'
+import type { TipoMovimientoCaja } from '@/lib/constantes'
 
 interface MovimientoResumen {
   metodoPago: string
   monto: Prisma.Decimal | number | string
+  montoEfectivo: Prisma.Decimal | number | string
+  montoTransferencia: Prisma.Decimal | number | string
+  montoTarjeta: Prisma.Decimal | number | string
   tipo: string
   anulada: boolean
 }
 
 interface MovimientoCajaInput {
   tipo: TipoMovimientoCaja
-  metodoPago: MetodoPago
-  monto: number
+  pagos: PagoDetalle[]
   descripcion?: string | null
   codigoOperacion?: string | null
   referenciaTipo?: string | null
@@ -33,9 +36,9 @@ export function calcularTotalesCaja(movimientos: MovimientoResumen[]) {
     if (movimiento.anulada) continue
     const monto = aNumero(movimiento.monto)
 
-    if (movimiento.metodoPago === 'efectivo') totales.efectivo += monto
-    if (movimiento.metodoPago === 'transferencia') totales.transferencia += monto
-    if (movimiento.metodoPago === 'tarjeta') totales.tarjeta += monto
+    totales.efectivo += aNumero(movimiento.montoEfectivo)
+    totales.transferencia += aNumero(movimiento.montoTransferencia)
+    totales.tarjeta += aNumero(movimiento.montoTarjeta)
 
     totales.porTipo[movimiento.tipo] = (totales.porTipo[movimiento.tipo] ?? 0) + monto
   }
@@ -70,23 +73,40 @@ export async function obtenerCajaHoyTx(tx: Prisma.TransactionClient) {
   }
 
   if (caja.estado !== 'abierta') {
-    return tx.cajaDiaria.update({
-      where: { id: caja.id },
-      data: {
-        estado: 'abierta',
-        cerradaAt: null,
-        montoEsperadoEfectivo: null,
-        montoContadoEfectivo: null,
-        diferenciaEfectivo: null,
-        montoEsperadoTransferencia: null,
-        montoContadoTransferencia: null,
-        diferenciaTransferencia: null,
-        observaciones: null,
-      },
-    })
+    return reabrirCajaTx(tx, caja)
   }
 
   return caja
+}
+
+export async function reabrirCajaTx(tx: Prisma.TransactionClient, caja: CajaDiaria) {
+  const monto = (valor: Prisma.Decimal | null) => (valor == null ? '—' : formatARS(valor))
+
+  const nota = [
+    `Reabierta automáticamente el ${formatFechaHoraAR(new Date())}.`,
+    'Cierre anterior:',
+    `efectivo esperado ${monto(caja.montoEsperadoEfectivo)}`,
+    `contado ${monto(caja.montoContadoEfectivo)}`,
+    `diferencia ${monto(caja.diferenciaEfectivo)};`,
+    `transferencia esperado ${monto(caja.montoEsperadoTransferencia)}`,
+    `contado ${monto(caja.montoContadoTransferencia)}`,
+    `diferencia ${monto(caja.diferenciaTransferencia)}.`,
+  ].join(' ')
+
+  return tx.cajaDiaria.update({
+    where: { id: caja.id },
+    data: {
+      estado: 'abierta',
+      cerradaAt: null,
+      montoEsperadoEfectivo: null,
+      montoContadoEfectivo: null,
+      diferenciaEfectivo: null,
+      montoEsperadoTransferencia: null,
+      montoContadoTransferencia: null,
+      diferenciaTransferencia: null,
+      observaciones: [caja.observaciones, nota].filter(Boolean).join(' | '),
+    },
+  })
 }
 
 export async function registrarMovimientoCaja(
@@ -94,13 +114,17 @@ export async function registrarMovimientoCaja(
   data: MovimientoCajaInput,
 ) {
   const caja = await obtenerCajaHoyTx(tx)
+  const desglose = desglosarPagos(data.pagos)
 
   return tx.movimientoCaja.create({
     data: {
       cajaId: caja.id,
       tipo: data.tipo,
-      metodoPago: data.metodoPago,
-      monto: data.monto,
+      metodoPago: desglose.metodoPago,
+      monto: desglose.monto,
+      montoEfectivo: desglose.montoEfectivo,
+      montoTransferencia: desglose.montoTransferencia,
+      montoTarjeta: desglose.montoTarjeta,
       descripcion: data.descripcion ?? null,
       codigoOperacion: data.codigoOperacion ?? null,
       referenciaTipo: data.referenciaTipo ?? null,
@@ -154,6 +178,9 @@ export async function revertirMovimientoCaja(
       tipo: 'anulacion',
       metodoPago: movimiento.metodoPago,
       monto: -aNumero(movimiento.monto),
+      montoEfectivo: -aNumero(movimiento.montoEfectivo),
+      montoTransferencia: -aNumero(movimiento.montoTransferencia),
+      montoTarjeta: -aNumero(movimiento.montoTarjeta),
       descripcion: `Anulación ${movimiento.codigoOperacion ?? ''}${motivo ? `: ${motivo}` : ''}`.trim(),
       codigoOperacion: movimiento.codigoOperacion,
       referenciaTipo: 'anulacion',

@@ -1,9 +1,11 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import Link from 'next/link'
+import { useToast } from '@/app/components/ToastProvider'
 
 interface Cliente {
-  id: number
+  id: string
   nombre: string
   apellido: string
   dni: string
@@ -12,7 +14,50 @@ interface Cliente {
   direccion?: string
 }
 
+const inputClass =
+  'w-full rounded-xl border border-zinc-700/80 bg-zinc-950/60 px-3.5 py-2.5 text-sm text-white placeholder-zinc-600 transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20'
+
+function Field({
+  label,
+  required,
+  hint,
+  children,
+}: {
+  label: string
+  required?: boolean
+  hint?: string
+  children: React.ReactNode
+}) {
+  return (
+    <div className="space-y-1.5">
+      <label className="block text-[11px] font-semibold uppercase tracking-wider text-zinc-400">
+        {label} {required && <span className="text-blue-400">*</span>}
+      </label>
+      {children}
+      {hint && <p className="text-[11px] text-zinc-600">{hint}</p>}
+    </div>
+  )
+}
+
+function SkeletonLista() {
+  return (
+    <div className="divide-y divide-zinc-800/60">
+      {Array.from({ length: 6 }).map((_, index) => (
+        <div key={index} className="flex items-center gap-3 px-5 py-4">
+          <div className="skeleton h-10 w-10 shrink-0 rounded-full" />
+          <div className="min-w-0 flex-1 space-y-2">
+            <div className="skeleton h-3.5 w-44 rounded" />
+            <div className="skeleton h-3 w-60 max-w-full rounded opacity-60" />
+          </div>
+          <div className="skeleton hidden h-3 w-20 rounded sm:block" />
+        </div>
+      ))}
+    </div>
+  )
+}
+
 export default function ClientesPage() {
+  const toast = useToast()
   const [clientes, setClientes] = useState<Cliente[]>([])
   const [busqueda, setBusqueda] = useState('')
   const [nombre, setNombre] = useState('')
@@ -22,22 +67,51 @@ export default function ClientesPage() {
   const [email, setEmail] = useState('')
   const [direccion, setDireccion] = useState('')
   const [cargando, setCargando] = useState(false)
-  const [mensaje, setMensaje] = useState({ texto: '', tipo: '' })
+  const [cargandoLista, setCargandoLista] = useState(true)
+  const [errorLista, setErrorLista] = useState('')
   const [mostrarFormulario, setMostrarFormulario] = useState(false)
 
-  const obtenerClientes = async () => {
+  const obtenerClientes = useCallback(async () => {
+    setCargandoLista(true)
+    setErrorLista('')
     try {
-      const res = await fetch('/api/clientes')
-      if (res.ok) setClientes(await res.json())
+      const res = await fetch('/api/clientes', { cache: 'no-store' })
+      if (!res.ok) throw new Error('No se pudieron cargar los clientes')
+      setClientes(await res.json())
     } catch (error) {
-      console.error('Error al traer clientes:', error)
+      setErrorLista(error instanceof Error ? error.message : 'Error al traer clientes')
+    } finally {
+      setCargandoLista(false)
     }
-  }
+  }, [])
 
-  useEffect(() => { obtenerClientes() }, [])
+  useEffect(() => {
+    let activo = true
+    fetch('/api/clientes', { cache: 'no-store' })
+      .then(async res => {
+        if (!res.ok) throw new Error('No se pudieron cargar los clientes')
+        return res.json() as Promise<Cliente[]>
+      })
+      .then(data => {
+        if (activo) setClientes(data)
+      })
+      .catch(error => {
+        if (activo) {
+          setErrorLista(error instanceof Error ? error.message : 'Error al traer clientes')
+        }
+      })
+      .finally(() => {
+        if (activo) setCargandoLista(false)
+      })
+
+    return () => {
+      activo = false
+    }
+  }, [])
 
   const clientesFiltrados = clientes.filter(c => {
-    const texto = busqueda.toLowerCase()
+    const texto = busqueda.trim().toLowerCase()
+    if (!texto) return true
     return (
       c.nombre.toLowerCase().includes(texto) ||
       c.apellido.toLowerCase().includes(texto) ||
@@ -47,7 +121,7 @@ export default function ClientesPage() {
   })
 
   const normalizarTelefono = (tel: string): string => {
-    let t = tel.trim().replace(/\s+/g, '').replace(/-/g, '')
+    const t = tel.trim().replace(/\s+/g, '').replace(/-/g, '')
     if (t.startsWith('+549')) return t
     if (t.startsWith('+54')) return t.replace('+54', '+549')
     if (t.startsWith('549')) return '+' + t
@@ -55,166 +129,254 @@ export default function ClientesPage() {
     return '+549' + t
   }
 
+  const limpiarFormulario = () => {
+    setNombre('')
+    setApellido('')
+    setDni('')
+    setTelefono('')
+    setEmail('')
+    setDireccion('')
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setCargando(true)
-    setMensaje({ texto: '', tipo: '' })
     try {
-      const telefonoNormalizado = normalizarTelefono(telefono)
       const res = await fetch('/api/clientes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nombre, apellido, dni, telefono: telefonoNormalizado, email, direccion }),
+        body: JSON.stringify({
+          nombre,
+          apellido,
+          dni,
+          telefono: normalizarTelefono(telefono),
+          email,
+          direccion,
+        }),
       })
-      const data = await res.json()
+      const data = (await res.json()) as { error?: string }
       if (!res.ok) throw new Error(data.error || 'Error al guardar')
-      setMensaje({ texto: 'Cliente registrado con éxito', tipo: 'success' })
-      setNombre(''); setApellido(''); setDni('')
-      setTelefono(''); setEmail(''); setDireccion('')
+      toast.success('Cliente registrado con éxito')
+      limpiarFormulario()
       setMostrarFormulario(false)
-      obtenerClientes()
-    } catch (error: any) {
-      setMensaje({ texto: error.message, tipo: 'error' })
+      await obtenerClientes()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'No se pudo guardar el cliente')
     } finally {
       setCargando(false)
     }
   }
 
   return (
-    <div className="p-4 md:p-6 max-w-5xl mx-auto">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl md:text-3xl font-bold text-white">Gestión de Clientes</h1>
-        <button
-          onClick={() => setMostrarFormulario(!mostrarFormulario)}
-          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition-colors"
-        >
-          {mostrarFormulario ? '✕ Cancelar' : '+ Nuevo Cliente'}
-        </button>
-      </div>
-
-      {/* Mensaje */}
-      {mensaje.texto && (
-        <div className={`p-4 rounded-xl mb-4 text-sm font-semibold ${
-          mensaje.tipo === 'success'
-            ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
-            : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
-        }`}>
-          {mensaje.texto}
+    <div className="mx-auto max-w-5xl space-y-5 p-4 md:p-8">
+      <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-blue-400/80">Directorio</p>
+          <h1 className="mt-1 text-2xl font-bold tracking-tight text-white md:text-3xl">Clientes</h1>
+          <p className="mt-1 text-sm text-zinc-500">
+            {clientes.length} {clientes.length === 1 ? 'cliente registrado' : 'clientes registrados'}
+          </p>
         </div>
-      )}
+        <button
+          type="button"
+          onClick={() => setMostrarFormulario(actual => !actual)}
+          className={`self-start rounded-xl px-4 py-2.5 text-sm font-bold transition ${
+            mostrarFormulario
+              ? 'border border-zinc-700 bg-zinc-900 text-zinc-300 hover:bg-zinc-800'
+              : 'bg-blue-600 text-white shadow-lg shadow-blue-950/30 hover:bg-blue-500'
+          }`}
+        >
+          {mostrarFormulario ? 'Cancelar' : '+ Nuevo cliente'}
+        </button>
+      </header>
 
-      {/* Formulario colapsable */}
       {mostrarFormulario && (
-        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 mb-6">
-          <h2 className="text-white font-semibold mb-4">Nuevo Cliente</h2>
-          <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <section className="animate-toast-in rounded-2xl border border-zinc-800/70 bg-zinc-900/60 p-5 shadow-lg shadow-black/10">
+          <div className="mb-4 flex items-center justify-between gap-3">
             <div>
-              <label className="block text-sm font-medium text-zinc-400 mb-1">Nombre *</label>
-              <input type="text" value={nombre} onChange={e => setNombre(e.target.value)} required
-                className="w-full p-2.5 border rounded-lg bg-transparent border-zinc-700 text-white focus:outline-none focus:border-blue-500" />
+              <h2 className="text-sm font-bold text-white">Nuevo cliente</h2>
+              <p className="mt-0.5 text-[11px] text-zinc-500">Los campos con * son obligatorios.</p>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-zinc-400 mb-1">Apellido *</label>
-              <input type="text" value={apellido} onChange={e => setApellido(e.target.value)} required
-                className="w-full p-2.5 border rounded-lg bg-transparent border-zinc-700 text-white focus:outline-none focus:border-blue-500" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-zinc-400 mb-1">DNI *</label>
-              <input type="text" value={dni} onChange={e => setDni(e.target.value)} required
-                className="w-full p-2.5 border rounded-lg bg-transparent border-zinc-700 text-white focus:outline-none focus:border-blue-500" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-zinc-400 mb-1">Teléfono * (ej: 3815131873)</label>
-              <input type="text" value={telefono} onChange={e => setTelefono(e.target.value)} required
-                placeholder="3815131873"
-                className="w-full p-2.5 border rounded-lg bg-transparent border-zinc-700 text-white focus:outline-none focus:border-blue-500" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-zinc-400 mb-1">Email (Opcional)</label>
-              <input type="email" value={email} onChange={e => setEmail(e.target.value)}
-                className="w-full p-2.5 border rounded-lg bg-transparent border-zinc-700 text-white focus:outline-none focus:border-blue-500" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-zinc-400 mb-1">Dirección (Opcional)</label>
-              <input type="text" value={direccion} onChange={e => setDireccion(e.target.value)}
-                className="w-full p-2.5 border rounded-lg bg-transparent border-zinc-700 text-white focus:outline-none focus:border-blue-500" />
-            </div>
-            <div className="md:col-span-2">
-              <button type="submit" disabled={cargando}
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-xl transition-colors disabled:opacity-50">
-                {cargando ? 'Guardando...' : 'Registrar Cliente'}
+            <span className="rounded-lg border border-blue-500/20 bg-blue-500/10 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-blue-300">
+              Alta
+            </span>
+          </div>
+          <form onSubmit={handleSubmit} className="grid gap-4 sm:grid-cols-2">
+            <Field label="Nombre" required>
+              <input type="text" value={nombre} onChange={e => setNombre(e.target.value)} required className={inputClass} placeholder="Juan" />
+            </Field>
+            <Field label="Apellido" required>
+              <input type="text" value={apellido} onChange={e => setApellido(e.target.value)} required className={inputClass} placeholder="Pérez" />
+            </Field>
+            <Field label="DNI" required>
+              <input type="text" value={dni} onChange={e => setDni(e.target.value)} required className={inputClass} placeholder="30123456" />
+            </Field>
+            <Field label="Teléfono" required hint="Se normaliza automáticamente con +549.">
+              <input type="tel" value={telefono} onChange={e => setTelefono(e.target.value)} required className={inputClass} placeholder="3815131873" />
+            </Field>
+            <Field label="Email">
+              <input type="email" value={email} onChange={e => setEmail(e.target.value)} className={inputClass} placeholder="cliente@email.com" />
+            </Field>
+            <Field label="Dirección">
+              <input type="text" value={direccion} onChange={e => setDireccion(e.target.value)} className={inputClass} placeholder="Calle y número" />
+            </Field>
+            <div className="sm:col-span-2">
+              <button
+                type="submit"
+                disabled={cargando}
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 py-3 text-sm font-bold text-white shadow-lg shadow-blue-950/20 transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {cargando && <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />}
+                {cargando ? 'Guardando...' : 'Registrar cliente'}
               </button>
             </div>
           </form>
-        </div>
+        </section>
       )}
 
-      {/* Buscador */}
-      <div className="mb-4">
+      <div className="relative">
+        <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+            <circle cx="11" cy="11" r="7" />
+            <path d="m20 20-3.5-3.5" />
+          </svg>
+        </span>
         <input
-          type="text"
-          placeholder="🔍 Buscar por nombre, apellido, DNI o teléfono..."
+          type="search"
+          placeholder="Buscar por nombre, apellido, DNI o teléfono..."
           value={busqueda}
           onChange={e => setBusqueda(e.target.value)}
-          className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white placeholder-zinc-500 focus:outline-none focus:border-blue-500 text-sm"
+          className="w-full rounded-xl border border-zinc-800/80 bg-zinc-900/70 py-3 pl-11 pr-4 text-sm text-white placeholder-zinc-600 shadow-sm transition focus:border-blue-500/70 focus:outline-none focus:ring-2 focus:ring-blue-500/15"
         />
       </div>
 
-      {/* Lista de clientes */}
-      <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden">
-        <div className="px-5 py-3 border-b border-zinc-800 flex items-center justify-between">
-          <h2 className="text-white font-semibold">Clientes Registrados</h2>
-          <span className="text-zinc-500 text-sm">{clientesFiltrados.length} cliente(s)</span>
+      <section className="overflow-hidden rounded-2xl border border-zinc-800/70 bg-zinc-900/55 shadow-sm shadow-black/10">
+        <div className="flex items-center justify-between border-b border-zinc-800/70 px-5 py-3.5">
+          <h2 className="text-sm font-bold text-white">
+            {busqueda ? 'Resultados' : 'Clientes registrados'}
+          </h2>
+          <span className="rounded-full border border-zinc-800 bg-zinc-950/60 px-2.5 py-1 text-[11px] font-semibold tabular-nums text-zinc-500">
+            {clientesFiltrados.length}
+          </span>
         </div>
 
-        {clientesFiltrados.length === 0 ? (
-          <p className="text-zinc-500 text-center py-10 text-sm">
-            {busqueda ? 'No se encontraron clientes con esa búsqueda.' : 'No hay clientes cargados todavía.'}
-          </p>
+        {cargandoLista ? (
+          <SkeletonLista />
+        ) : errorLista ? (
+          <div className="px-5 py-10 text-center">
+            <p className="text-sm font-semibold text-red-300">{errorLista}</p>
+            <button
+              type="button"
+              onClick={() => void obtenerClientes()}
+              className="mt-3 rounded-xl border border-zinc-700 px-4 py-2 text-sm font-semibold text-zinc-300 transition hover:bg-zinc-800"
+            >
+              Reintentar
+            </button>
+          </div>
+        ) : clientesFiltrados.length === 0 ? (
+          <div className="flex flex-col items-center justify-center px-5 py-14 text-center">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full border border-zinc-800 bg-zinc-950 text-zinc-600">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round">
+                <circle cx="9" cy="8" r="3" />
+                <path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6M16 5.5a3 3 0 0 1 0 5.5M18.5 14.5c1.6.8 2.5 2.3 2.5 4.5" />
+              </svg>
+            </div>
+            <p className="mt-3 text-sm font-semibold text-zinc-300">
+              {busqueda ? 'No hay coincidencias' : 'Todavía no hay clientes'}
+            </p>
+            <p className="mt-1 max-w-xs text-xs text-zinc-600">
+              {busqueda
+                ? 'Probá con otro nombre, DNI o teléfono.'
+                : 'Registrá el primer cliente para empezar a vender y financiar.'}
+            </p>
+            {!busqueda && (
+              <button
+                type="button"
+                onClick={() => setMostrarFormulario(true)}
+                className="mt-4 rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white transition hover:bg-blue-500"
+              >
+                + Nuevo cliente
+              </button>
+            )}
+          </div>
         ) : (
           <>
-            {/* Tabla para desktop */}
-            <div className="hidden md:block overflow-x-auto">
+            <div className="hidden overflow-x-auto md:block">
               <table className="w-full text-left text-sm">
                 <thead>
-                  <tr className="border-b border-zinc-800 text-zinc-500">
-                    <th className="px-5 py-3 font-medium">Nombre y Apellido</th>
-                    <th className="px-5 py-3 font-medium">DNI</th>
-                    <th className="px-5 py-3 font-medium">Teléfono</th>
-                    <th className="px-5 py-3 font-medium">Email</th>
-                    <th className="px-5 py-3 font-medium">Dirección</th>
+                  <tr className="border-b border-zinc-800/70 text-[11px] uppercase tracking-wider text-zinc-500">
+                    <th className="px-5 py-3 font-semibold">Cliente</th>
+                    <th className="px-5 py-3 font-semibold">DNI</th>
+                    <th className="px-5 py-3 font-semibold">Teléfono</th>
+                    <th className="px-5 py-3 font-semibold">Contacto</th>
+                    <th className="px-5 py-3 text-right font-semibold">Acción</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-zinc-800">
+                <tbody className="divide-y divide-zinc-800/60">
                   {clientesFiltrados.map(c => (
-                    <tr key={c.id} className="hover:bg-zinc-800/50 transition-colors">
-                      <td className="px-5 py-3 font-medium text-white">{c.apellido}, {c.nombre}</td>
-                      <td className="px-5 py-3 text-zinc-400">{c.dni}</td>
-                      <td className="px-5 py-3 text-zinc-400">{c.telefono}</td>
-                      <td className="px-5 py-3 text-zinc-500 text-xs">{c.email || '-'}</td>
-                      <td className="px-5 py-3 text-zinc-500 text-xs italic">{c.direccion || '-'}</td>
+                    <tr key={c.id} className="group transition hover:bg-white/2.5">
+                      <td className="px-5 py-3.5">
+                        <div className="flex items-center gap-3">
+                          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-zinc-700/70 bg-zinc-800/70 text-xs font-bold text-zinc-300">
+                            {c.nombre.charAt(0)}
+                            {c.apellido.charAt(0)}
+                          </span>
+                          <div className="min-w-0">
+                            <p className="truncate font-semibold text-white">
+                              {c.apellido}, {c.nombre}
+                            </p>
+                            <p className="truncate text-[11px] text-zinc-500">{c.direccion || 'Sin dirección'}</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-5 py-3.5 tabular-nums text-zinc-400">{c.dni}</td>
+                      <td className="px-5 py-3.5 tabular-nums text-zinc-400">{c.telefono}</td>
+                      <td className="px-5 py-3.5 text-xs text-zinc-500">{c.email || '—'}</td>
+                      <td className="px-5 py-3.5 text-right">
+                        <Link
+                          href={`/admin/clientes/${c.id}`}
+                          className="inline-flex items-center gap-1 whitespace-nowrap rounded-lg border border-zinc-800 px-3 py-1.5 text-[11px] font-semibold text-zinc-400 transition group-hover:border-blue-500/30 group-hover:text-blue-300"
+                        >
+                          Ver ficha
+                          <span aria-hidden="true">→</span>
+                        </Link>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
 
-            {/* Cards para mobile */}
-            <div className="md:hidden divide-y divide-zinc-800">
+            <div className="divide-y divide-zinc-800/60 md:hidden">
               {clientesFiltrados.map(c => (
-                <div key={c.id} className="px-4 py-4">
-                  <p className="text-white font-semibold">{c.apellido}, {c.nombre}</p>
-                  <p className="text-zinc-400 text-sm mt-1">DNI: {c.dni}</p>
-                  <p className="text-zinc-400 text-sm">📞 {c.telefono}</p>
-                  {c.email && <p className="text-zinc-500 text-xs mt-1">{c.email}</p>}
-                  {c.direccion && <p className="text-zinc-500 text-xs italic">{c.direccion}</p>}
-                </div>
+                <Link
+                  key={c.id}
+                  href={`/admin/clientes/${c.id}`}
+                  className="block px-4 py-4 transition hover:bg-white/3"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex min-w-0 items-start gap-3">
+                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-zinc-700/70 bg-zinc-800/70 text-xs font-bold text-zinc-300">
+                        {c.nombre.charAt(0)}
+                        {c.apellido.charAt(0)}
+                      </span>
+                      <div className="min-w-0">
+                        <p className="truncate font-semibold text-white">
+                          {c.apellido}, {c.nombre}
+                        </p>
+                        <p className="mt-0.5 text-xs text-zinc-500">DNI {c.dni}</p>
+                        <p className="text-xs tabular-nums text-zinc-500">{c.telefono}</p>
+                        {c.email && <p className="mt-1 truncate text-[11px] text-zinc-600">{c.email}</p>}
+                      </div>
+                    </div>
+                    <span className="shrink-0 text-xs font-semibold text-blue-400">→</span>
+                  </div>
+                </Link>
               ))}
             </div>
           </>
         )}
-      </div>
+      </section>
     </div>
   )
 }

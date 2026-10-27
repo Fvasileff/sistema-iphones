@@ -17,16 +17,16 @@ model Usuario {
 }
 
 model iPhone {
-  id             String  @id @default(uuid())
+  id             String             @id @default(uuid())
   modelo         String
   variante       String?
   color          String
   almacenamiento String
   precioBase     Decimal
-  stock          Int     @default(1)
-  activo         Boolean @default(true)
+  stock          Int                @default(1)
+  activo         Boolean            @default(true)
   ventas         Venta[]
-  ventasIphone   VentaIphone[]
+  ventaItems     VentaContadoItem[]
 }
 
 model Cliente {
@@ -39,69 +39,58 @@ model Cliente {
   direccion String?
   createdAt DateTime @default(now())
 
-  ventas         Venta[]         @relation("ClienteVentas")
-  reparaciones   Reparacion[]
-  ventasProducto VentaProducto[]
-  ventasIphone   VentaIphone[]
+  ventas        Venta[]        @relation("ClienteVentas")
+  reparaciones  Reparacion[]
+  ventasContado VentaContado[]
+
+  @@index([apellido, nombre])
 }
 
 model Venta {
-  id                String   @id @default(uuid())
-  cliente           Cliente  @relation("ClienteVentas", fields: [clienteId], references: [id])
+  id                String    @id @default(uuid())
+  cliente           Cliente   @relation("ClienteVentas", fields: [clienteId], references: [id])
   clienteId         String
-  iphone            iPhone   @relation(fields: [iphoneId], references: [id])
+  iphone            iPhone    @relation(fields: [iphoneId], references: [id])
   iphoneId          String
-  usuario           Usuario  @relation(fields: [usuarioId], references: [id])
+  usuario           Usuario   @relation(fields: [usuarioId], references: [id])
   usuarioId         String
   precioVenta       Decimal
-  anticipoEfectivo  Decimal  @default(0)
-  anticipoEquipo    Decimal  @default(0)
+  anticipoEfectivo  Decimal   @default(0)
+  metodoAnticipo    String    @default("efectivo") // efectivo | transferencia | tarjeta
+  anticipoEquipo    Decimal   @default(0)
   descripcionEquipo String?
   planPago          String
   totalCuotas       Int
   montoCuota        Decimal
   interesPct        Decimal
-  estado            String   @default("activa")
-  fechaVenta        DateTime @default(now())
-  codigoOperacion   String?  @unique
-  anulada           Boolean  @default(false)
+  estado            String    @default("activa")
+  fechaVenta        DateTime  @default(now())
+  codigoOperacion   String?   @unique
+  anulada           Boolean   @default(false)
   motivoAnulacion   String?
   fechaAnulacion    DateTime?
   cuotas            Cuota[]
-}
-
-model VentaIphone {
-  id              String    @id @default(uuid())
-  codigoOperacion String    @unique
-  cliente         Cliente?  @relation(fields: [clienteId], references: [id])
-  clienteId       String?
-  iphone          iPhone    @relation(fields: [iphoneId], references: [id])
-  iphoneId        String
-  precioVenta     Decimal
-  metodoPago      String    @default("efectivo") // efectivo | transferencia | tarjeta
-  observaciones   String?
-  fechaVenta      DateTime  @default(now())
-  anulada         Boolean   @default(false)
-  motivoAnulacion String?
-  fechaAnulacion  DateTime?
-  createdAt       DateTime  @default(now())
 
   @@index([fechaVenta])
   @@index([clienteId])
-  @@index([iphoneId])
+  @@index([anulada, fechaVenta])
 }
 
 model Cuota {
-  id               String    @id @default(uuid())
-  venta            Venta     @relation(fields: [ventaId], references: [id])
+  id               String      @id @default(uuid())
+  venta            Venta       @relation(fields: [ventaId], references: [id])
   ventaId          String
   numeroCuota      Int
   montoOriginal    Decimal
-  montoMora        Decimal   @default(0)
+  montoMora        Decimal     @default(0)
   fechaVencimiento DateTime
   fechaPago        DateTime?
-  estado           String    @default("pendiente")
+  estado           String      @default("pendiente")
   pagos            PagoCuota[]
+
+  @@index([ventaId])
+  @@index([estado, fechaVencimiento])
+  @@index([fechaPago])
 }
 
 model Configuracion {
@@ -131,7 +120,7 @@ model Producto {
   updatedAt    DateTime @updatedAt
 
   movimientos     MovimientoStock[]
-  ventaItems      VentaProductoItem[]
+  ventaItems      VentaContadoItem[]
   reparacionItems ReparacionProducto[]
 
   @@index([categoria, activo])
@@ -142,8 +131,8 @@ model MovimientoStock {
   id             String   @id @default(uuid())
   producto       Producto @relation(fields: [productoId], references: [id])
   productoId     String
-  tipo           String   // ingreso | egreso | ajuste | venta | reparacion | anulacion
-  cantidad       Int      // delta con signo
+  tipo           String // ingreso | egreso | ajuste | venta | reparacion | anulacion
+  cantidad       Int // delta con signo
   motivo         String?
   referenciaTipo String?
   referenciaId   String?
@@ -152,44 +141,53 @@ model MovimientoStock {
   @@index([productoId, createdAt])
 }
 
-model VentaProducto {
-  id              String   @id @default(uuid())
-  codigoOperacion String   @unique
-  cliente         Cliente? @relation(fields: [clienteId], references: [id])
-  clienteId       String?
-  total           Decimal
-  metodoPago      String   @default("efectivo") // efectivo | transferencia
-  observaciones   String?
-  fechaVenta      DateTime @default(now())
-  anulada         Boolean  @default(false)
-  motivoAnulacion String?
-  fechaAnulacion  DateTime?
-  createdAt       DateTime @default(now())
+model VentaContado {
+  id                 String    @id @default(uuid())
+  codigoOperacion    String    @unique
+  cliente            Cliente?  @relation(fields: [clienteId], references: [id])
+  clienteId          String?
+  total              Decimal
+  metodoPago         String    @default("efectivo") // efectivo | transferencia | tarjeta | mixto
+  montoEfectivo      Decimal   @default(0)
+  montoTransferencia Decimal   @default(0)
+  montoTarjeta       Decimal   @default(0)
+  observaciones      String?
+  fechaVenta         DateTime  @default(now())
+  anulada            Boolean   @default(false)
+  motivoAnulacion    String?
+  fechaAnulacion     DateTime?
+  createdAt          DateTime  @default(now())
 
-  items VentaProductoItem[]
+  items VentaContadoItem[]
 
   @@index([fechaVenta])
   @@index([clienteId])
+  @@index([anulada, fechaVenta])
+  @@map("VentaProducto")
 }
 
-model VentaProductoItem {
-  id             String        @id @default(uuid())
-  venta          VentaProducto @relation(fields: [ventaId], references: [id])
+model VentaContadoItem {
+  id             String       @id @default(uuid())
+  venta          VentaContado @relation(fields: [ventaId], references: [id])
   ventaId        String
-  producto       Producto      @relation(fields: [productoId], references: [id])
-  productoId     String
+  producto       Producto?    @relation(fields: [productoId], references: [id])
+  productoId     String?
+  iphone         iPhone?      @relation(fields: [iphoneId], references: [id])
+  iphoneId       String?
   cantidad       Int
   precioUnitario Decimal
   subtotal       Decimal
 
   @@index([ventaId])
   @@index([productoId])
+  @@index([iphoneId])
+  @@map("VentaProductoItem")
 }
 
 model Reparacion {
-  id                  String   @id @default(uuid())
-  codigoOperacion     String   @unique
-  cliente             Cliente  @relation(fields: [clienteId], references: [id])
+  id                  String    @id @default(uuid())
+  codigoOperacion     String    @unique
+  cliente             Cliente   @relation(fields: [clienteId], references: [id])
   clienteId           String
   equipo              String
   marca               String?
@@ -202,18 +200,18 @@ model Reparacion {
   estadoFisico        String?
   falla               String
   diagnostico         String?
-  presupuesto         Decimal  @default(0)
+  presupuesto         Decimal   @default(0)
   montoFinal          Decimal?
-  estado              String   @default("recibido")
-  fechaIngreso        DateTime @default(now())
+  estado              String    @default("recibido")
+  fechaIngreso        DateTime  @default(now())
   fechaPromesa        DateTime?
   fechaEntrega        DateTime?
   observaciones       String?
-  anulada             Boolean  @default(false)
+  anulada             Boolean   @default(false)
   motivoAnulacion     String?
   fechaAnulacion      DateTime?
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
   repuestos ReparacionProducto[]
   pagos     PagoReparacion[]
@@ -236,7 +234,7 @@ model HistorialReparacion {
 }
 
 model ReparacionProducto {
-  id              String     @id @default(uuid())
+  id              String    @id @default(uuid())
   reparacion      Reparacion @relation(fields: [reparacionId], references: [id])
   reparacionId    String
   producto        Producto   @relation(fields: [productoId], references: [id])
@@ -251,6 +249,7 @@ model ReparacionProducto {
 
   @@index([reparacionId])
   @@index([productoId])
+  @@index([anulada, createdAt])
 }
 
 model PagoReparacion {
@@ -268,31 +267,33 @@ model PagoReparacion {
   fechaAnulacion  DateTime?
 
   @@index([reparacionId, fecha])
+  @@index([anulada, fecha])
 }
 
 model PagoCuota {
-  id              String   @id @default(uuid())
-  codigoOperacion String   @unique
-  cuota           Cuota    @relation(fields: [cuotaId], references: [id])
+  id              String    @id @default(uuid())
+  codigoOperacion String    @unique
+  cuota           Cuota     @relation(fields: [cuotaId], references: [id])
   cuotaId         String
   monto           Decimal
-  montoMora       Decimal  @default(0)
-  metodoPago      String   @default("efectivo")
-  fecha           DateTime @default(now())
+  montoMora       Decimal   @default(0)
+  metodoPago      String    @default("efectivo")
+  fecha           DateTime  @default(now())
   observaciones   String?
-  anulada         Boolean  @default(false)
+  anulada         Boolean   @default(false)
   motivoAnulacion String?
   fechaAnulacion  DateTime?
 
   @@index([cuotaId, fecha])
+  @@index([anulada, fecha])
 }
 
 model CajaDiaria {
-  id                         String   @id @default(uuid())
-  fechaDia                   DateTime @unique
-  montoInicial               Decimal  @default(0)
-  estado                     String   @default("abierta") // abierta | cerrada
-  abiertaAt                  DateTime @default(now())
+  id                         String    @id @default(uuid())
+  fechaDia                   DateTime  @unique
+  montoInicial               Decimal   @default(0)
+  estado                     String    @default("abierta") // abierta | cerrada
+  abiertaAt                  DateTime  @default(now())
   cerradaAt                  DateTime?
   montoEsperadoEfectivo      Decimal?
   montoContadoEfectivo       Decimal?
@@ -301,7 +302,7 @@ model CajaDiaria {
   montoContadoTransferencia  Decimal?
   diferenciaTransferencia    Decimal?
   observaciones              String?
-  createdAt                  DateTime @default(now())
+  createdAt                  DateTime  @default(now())
 
   movimientos MovimientoCaja[]
 
@@ -309,21 +310,103 @@ model CajaDiaria {
 }
 
 model MovimientoCaja {
-  id              String     @id @default(uuid())
-  caja            CajaDiaria @relation(fields: [cajaId], references: [id])
-  cajaId          String
-  tipo            String     // venta_financiada | cobro_cuota | venta_producto | cobro_reparacion | ingreso | egreso | ajuste | anulacion
-  metodoPago      String     @default("efectivo") // efectivo | transferencia
-  monto           Decimal
-  descripcion     String?
-  codigoOperacion String?
-  referenciaTipo  String?
-  referenciaId    String?
-  createdAt       DateTime   @default(now())
-  anulada         Boolean    @default(false)
-  motivoAnulacion String?
-  fechaAnulacion  DateTime?
+  id                 String     @id @default(uuid())
+  caja               CajaDiaria @relation(fields: [cajaId], references: [id])
+  cajaId             String
+  tipo               String // venta | venta_financiada | cobro_cuota | venta_producto | venta_iphone | cobro_reparacion | ingreso | egreso | ajuste | anulacion
+  metodoPago         String     @default("efectivo") // efectivo | transferencia | tarjeta | mixto
+  monto              Decimal
+  montoEfectivo      Decimal    @default(0)
+  montoTransferencia Decimal    @default(0)
+  montoTarjeta       Decimal    @default(0)
+  descripcion        String?
+  codigoOperacion    String?
+  referenciaTipo     String?
+  referenciaId       String?
+  createdAt          DateTime   @default(now())
+  anulada            Boolean    @default(false)
+  motivoAnulacion    String?
+  fechaAnulacion     DateTime?
 
   @@index([cajaId, metodoPago])
   @@index([codigoOperacion])
+  @@index([anulada, createdAt])
+}
+
+// ==========================================
+// MÓDULO ARCA / AFIP (Facturación Electrónica)
+// ==========================================
+
+model Comprobante {
+  id                   String          @id @default(uuid())
+  ambiente             String          @default("homologacion") // homologacion | produccion
+  ptoVta               Int
+  cbteTipo             Int             // 1: A, 6: B, 11: C, etc.
+  cbteNro              Int?            // Asignado por ARCA al autorizar
+  cae                  String?         // CAE otorgado por AFIP
+  caeFchVto            String?         // Vencimiento del CAE (YYYYMMDD)
+  
+  referenciaTipo       String?         // 'venta' | 'venta_contado' | 'reparacion' | etc.
+  referenciaId         String?         // ID del registro asociado
+
+  docTipo              Int             // 80: CUIT, 96: DNI, 99: Cons. Final, etc.
+  docNro               String
+  receptorNombre       String
+  condicionIvaReceptor String        // Responsable Inscripto, Monotributo, Consumidor Final, etc.
+
+  concepto             Int             @default(1) // 1: Productos, 2: Servicios, 3: Ambos
+  fchServDesde         DateTime?
+  fchServHasta         DateTime?
+  fchVtoPago           DateTime?
+  impTotal             Decimal
+  impTotConc           Decimal         @default(0) // No gravado
+  impNeto              Decimal         @default(0) // Gravado
+  impOpEx              Decimal         @default(0) // Exento
+  impTrib              Decimal         @default(0) // Tributos
+  impIva               Decimal         @default(0) // IVA total
+
+  estado               String          @default("pendiente") // pendiente | autorizado | rechazado | anulado
+  intentos             Int             @default(0)
+  resultado            String?         // A: Aprobado, R: Rechazado, P: Parcial
+  observaciones        String?         // Mensajes o errores devueltos por ARCA
+  requestJson          String?         // Payload enviado a AFIP para auditoría
+  responseJson         String?         // Respuesta cruda recibida de AFIP
+
+  cbteAsocTipo         Int?
+  cbteAsocPtoVta       Int?
+  cbteAsocNro          Int?
+
+  createdAt            DateTime        @default(now())
+  updatedAt            DateTime        @updatedAt
+
+  ivas                 ComprobanteIva[]
+
+  @@unique([ambiente, ptoVta, cbteTipo, cbteNro])
+  @@index([referenciaTipo, referenciaId])
+  @@index([estado, createdAt])
+  @@map("comprobante")
+}
+
+model ComprobanteIva {
+  id             String      @id @default(uuid())
+  comprobanteId  String
+  comprobante    Comprobante @relation(fields: [comprobanteId], references: [id], onDelete: Cascade)
+  idIva          Int         // ID de alícuota en AFIP (5: 21%, 4: 10.5%, etc.)
+  baseImp        Decimal     // Base imponible
+  importe        Decimal     // Importe de IVA
+
+  @@index([comprobanteId])
+  @@map("comprobante_iva")
+}
+
+model ArcaToken {
+  id         String   @id @default(uuid())
+  ambiente   String   @unique @default("homologacion") // homologacion | produccion
+  token      String   // Token CMS devuelto por AFIP / WSAA
+  sign       String   // Sign firmado devuelto por AFIP / WSAA
+  expiresAt  DateTime // Fecha de expiración (por lo general duran 12 horas)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@map("arca_token")
 }

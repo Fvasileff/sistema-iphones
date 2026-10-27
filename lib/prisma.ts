@@ -1,9 +1,16 @@
 import { PrismaClient } from '@prisma/client'
 import { PrismaPg } from '@prisma/adapter-pg'
 
-const connectionString = process.env.DATABASE_URL ?? ''
+const baseConnectionString = process.env.DATABASE_URL ?? ''
+const schema = process.env.PRISMA_SCHEMA
+const connectionString = schema
+  ? `${baseConnectionString}${baseConnectionString.includes('?') ? '&' : '?'}options=-c%20search_path%3D${encodeURIComponent(schema)}`
+  : baseConnectionString
 
-const adapter = new PrismaPg({ connectionString })
+const adapter = new PrismaPg(
+  { connectionString },
+  schema ? { schema } : undefined,
+)
 
 const globalForPrisma = globalThis as unknown as {
   prisma: InstanceType<typeof PrismaClient> | undefined

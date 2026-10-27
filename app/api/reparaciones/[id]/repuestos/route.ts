@@ -41,7 +41,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       const producto = await tx.producto.findUnique({ where: { id: data.productoId } })
       if (!producto) throw new ErrorApi('Producto no encontrado', 404)
       if (!producto.activo) throw new ErrorApi('El producto está inactivo', 400)
-      if (producto.stock < data.cantidad) {
+
+      const descuento = await tx.producto.updateMany({
+        where: { id: producto.id, activo: true, stock: { gte: data.cantidad } },
+        data: { stock: { decrement: data.cantidad } },
+      })
+
+      if (descuento.count === 0) {
         throw new ErrorApi(`Stock insuficiente de ${producto.nombre}`, 409)
       }
 
@@ -57,11 +63,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
           subtotal,
         },
         include: { producto: true },
-      })
-
-      await tx.producto.update({
-        where: { id: producto.id },
-        data: { stock: { decrement: data.cantidad } },
       })
 
       await tx.movimientoStock.create({

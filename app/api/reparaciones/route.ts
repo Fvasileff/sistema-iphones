@@ -7,7 +7,7 @@ import { ESTADOS_REPARACION } from '@/lib/constantes'
 import { ErrorApi, manejarErrorApi } from '@/lib/errores'
 import { rangoFechasAR } from '@/lib/fechas'
 import { generarCodigoOperacion } from '@/lib/operaciones'
-import { includeReparacion, parseFechaPromesa } from '@/lib/reparaciones'
+import { includeReparacion, includeReparacionLista, parseFechaPromesa } from '@/lib/reparaciones'
 import { reparacionCreateSchema } from '@/lib/validaciones/reparaciones'
 
 export const dynamic = 'force-dynamic'
@@ -58,7 +58,7 @@ export async function GET(request: Request) {
 
     const reparaciones = await prisma.reparacion.findMany({
       where,
-      include: includeReparacion,
+      include: includeReparacionLista,
       orderBy: { fechaIngreso: 'desc' },
       take: 300,
     })
@@ -125,8 +125,7 @@ export async function POST(request: Request) {
 
         await registrarMovimientoCaja(tx, {
           tipo: 'cobro_reparacion',
-          metodoPago: data.metodoPago,
-          monto: data.sena,
+          pagos: [{ metodoPago: data.metodoPago, monto: data.sena }],
           descripcion: `Seña reparación ${codigoOperacion}`,
           codigoOperacion: codigoPago,
           referenciaTipo: 'pago_reparacion',

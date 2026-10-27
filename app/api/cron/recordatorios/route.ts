@@ -1,12 +1,9 @@
 import { NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma' 
-import twilio from 'twilio'
+import { prisma } from '@/lib/prisma'
+import { ZONA_HORARIA_AR, fechaISOAR, finDiaAR, inicioDiaAR, sumarDiasAR } from '@/lib/fechas'
+import { enviarWhatsapp } from '@/lib/whatsapp'
 
-const accountSid = process.env.TWILIO_ACCOUNT_SID
-const authToken = process.env.TWILIO_AUTH_TOKEN
-const twilioNumber = process.env.TWILIO_WHATSAPP_NUMBER
-
-const client = twilio(accountSid, authToken)
+export const dynamic = 'force-dynamic'
 
 export async function GET(request: Request) {
   // Verificación de seguridad básica para que nadie externo ejecute el cron de forma manual
@@ -17,30 +14,26 @@ export async function GET(request: Request) {
   }
 
   try {
-    // 1. Calcular la fecha de acá a exactamente 2 días
-    const hoy = new Date()
-    const fechaObjetivo = new Date(hoy)
-    fechaObjetivo.setDate(hoy.getDate() + 2)
+    // 1. Calcular la fecha de acá a exactamente 2 días (en horario de Argentina)
+    const fechaObjetivo = fechaISOAR(sumarDiasAR(new Date(), 2))
+    const inicioDia = inicioDiaAR(fechaObjetivo)
+    const finDia = finDiaAR(fechaObjetivo)
 
-    // Formateamos el inicio y fin del día objetivo para la consulta en la BD
-    const inicioDia = new Date(fechaObjetivo.setHours(0, 0, 0, 0))
-    const finDia = new Date(fechaObjetivo.setHours(23, 59, 59, 999))
-
-    // 2. Buscar en Supabase las cuotas que venzan en ese rango y estén pendientes
-    // AGREGADO: iphone true para poder traer los detalles del celular en el mensaje
+    // 2. Buscar las cuotas que venzan en ese rango y sigan impagas
     const cuotasPorVencer = await prisma.cuota.findMany({
       where: {
         fechaVencimiento: {
           gte: inicioDia,
           lte: finDia,
         },
-        estado: 'pendiente', 
+        estado: { in: ['pendiente', 'mora'] },
+        venta: { anulada: false },
       },
       include: {
         venta: {
           include: {
-            cliente: true, 
-            iphone: true, 
+            cliente: true,
+            iphone: true,
           },
         },
       },
@@ -61,8 +54,11 @@ export async function GET(request: Request) {
         const nombreCompleto = `${cliente.nombre} ${cliente.apellido}`
         
         // Formatear la fecha para que salga ej: "01 de junio" o "05 de agosto"
-        const opciones: Intl.DateTimeFormatOptions = { day: '2-digit', month: 'long' }
-        const fechaFormateada = cuota.fechaVencimiento.toLocaleDateString('es-AR', opciones)
+        const fechaFormateada = new Intl.DateTimeFormat('es-AR', {
+          day: '2-digit',
+          month: 'long',
+          timeZone: ZONA_HORARIA_AR,
+        }).format(cuota.fechaVencimiento)
 
         // Convertimos los Decimal de Prisma a Number para darles formato local de dinero
         const montoBase = Number(cuota.montoOriginal)
@@ -84,17 +80,8 @@ export async function GET(request: Request) {
           `-----------------------------------\n` +
           `💰 *TOTAL A ABONAR: *$${totalAPagar.toLocaleString('es-AR')}*`
 
-        // Formatear número celular para Twilio
-        let limpioTo = telefono.trim()
-        if (!limpioTo.startsWith('+')) limpioTo = '+' + limpioTo
-        const formattedTo = limpioTo.startsWith('whatsapp:') ? limpioTo : `whatsapp:${limpioTo}`
-
         // Despachar a Twilio esperando la respuesta antes de pasar al siguiente cliente
-        await client.messages.create({
-          body: mensaje,
-          from: twilioNumber,
-          to: formattedTo,
-        })
+        await enviarWhatsapp(telefono, mensaje)
 
         mensajesEnviadosCount++
       } catch (err) {
@@ -103,8 +90,8 @@ export async function GET(request: Request) {
     }
 
     return NextResponse.json({ success: true, mensajesEnviados: mensajesEnviadosCount })
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error en el Cron de recordatorios:', error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ error: 'Error interno al procesar recordatorios' }, { status: 500 })
   }
 }

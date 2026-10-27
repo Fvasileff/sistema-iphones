@@ -54,8 +54,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
       await registrarMovimientoCaja(tx, {
         tipo: 'cobro_reparacion',
-        metodoPago: data.metodoPago,
-        monto: data.monto,
+        pagos: [{ metodoPago: data.metodoPago, monto: data.monto }],
         descripcion: `Cobro reparación ${reparacion.codigoOperacion}`,
         codigoOperacion,
         referenciaTipo: 'pago_reparacion',

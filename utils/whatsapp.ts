@@ -1,4 +1,5 @@
 // utils/whatsapp.ts
+import { enviarWhatsapp } from '@/lib/whatsapp'
 
 interface EnviarMsgProps {
   telefono: string
@@ -7,32 +8,16 @@ interface EnviarMsgProps {
 
 /**
  * Función helper interna.
- * Formatea el número y se comunica con el Route Handler backend.
+ * Envía el mensaje directamente a Twilio desde el servidor.
  */
 async function ejecutarEnvio({ telefono, mensaje }: EnviarMsgProps) {
   try {
-    const res = await fetch(`${process.env.NEXT_PUBLIC_URL}/api/send-whatsapp`, {
-      method: 'POST',
-      headers: { 
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ 
-        to: telefono.startsWith('whatsapp:') ? telefono : `whatsapp:${telefono}`, 
-        message: mensaje 
-      }),
-    })
-    
-    const data = await res.json()
-    
-    if (!res.ok) {
-      console.error('Error del servidor Twilio:', data.error)
-      throw new Error(data.error || 'Error al despachar el mensaje')
-    }
-    
+    const data = await enviarWhatsapp(telefono, mensaje)
     return { success: true, data }
-  } catch (error: any) {
-    console.error('Error crítico en el envío de WhatsApp:', error.message)
-    return { success: false, error: error.message }
+  } catch (error) {
+    const mensajeError = error instanceof Error ? error.message : 'Error al enviar el mensaje'
+    console.error('Error crítico en el envío de WhatsApp:', mensajeError)
+    return { success: false, error: mensajeError }
   }
 }
 

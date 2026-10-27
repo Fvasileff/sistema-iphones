@@ -84,26 +84,13 @@ async function limpiarDemo() {
   }
 
   if (iphoneIds.length > 0) {
-    const ventas = await prisma.ventaIphone.findMany({
-      where: { iphoneId: { in: iphoneIds } },
-      select: { id: true },
-    })
-    const ventaIds = ventas.map(venta => venta.id)
-
-    if (ventaIds.length > 0) {
-      await prisma.movimientoCaja.deleteMany({
-        where: { referenciaTipo: 'venta_iphone', referenciaId: { in: ventaIds } },
-      })
-      await prisma.ventaIphone.deleteMany({ where: { id: { in: ventaIds } } })
-    }
-
     await prisma.iPhone.deleteMany({ where: { id: { in: iphoneIds } } })
   }
 
   if (productoIds.length > 0) {
     await prisma.movimientoStock.deleteMany({ where: { productoId: { in: productoIds } } })
 
-    const items = await prisma.ventaProductoItem.findMany({
+    const items = await prisma.ventaContadoItem.findMany({
       where: { productoId: { in: productoIds } },
       select: { ventaId: true },
     })
@@ -113,11 +100,11 @@ async function limpiarDemo() {
       await prisma.movimientoCaja.deleteMany({
         where: { referenciaTipo: 'venta_producto', referenciaId: { in: ventaIds } },
       })
-      await prisma.ventaProductoItem.deleteMany({ where: { productoId: { in: productoIds } } })
+      await prisma.ventaContadoItem.deleteMany({ where: { productoId: { in: productoIds } } })
       for (const ventaId of ventaIds) {
-        const restantes = await prisma.ventaProductoItem.count({ where: { ventaId } })
+        const restantes = await prisma.ventaContadoItem.count({ where: { ventaId } })
         if (restantes === 0) {
-          await prisma.ventaProducto.delete({ where: { id: ventaId } })
+          await prisma.ventaContado.delete({ where: { id: ventaId } })
         }
       }
     }
@@ -129,7 +116,7 @@ async function limpiarDemo() {
   }
 
   if (clienteIds.length > 0) {
-    await prisma.ventaProducto.updateMany({
+    await prisma.ventaContado.updateMany({
       where: { clienteId: { in: clienteIds } },
       data: { clienteId: null },
     })

@@ -38,6 +38,7 @@ export const TIPOS_MOVIMIENTO_STOCK = [
 export type TipoMovimientoStock = (typeof TIPOS_MOVIMIENTO_STOCK)[number]
 
 export const TIPOS_MOVIMIENTO_CAJA = [
+  'venta',
   'venta_financiada',
   'cobro_cuota',
   'venta_producto',
@@ -48,3 +49,11 @@ export const TIPOS_MOVIMIENTO_CAJA = [
   'anulacion',
 ] as const
 export type TipoMovimientoCaja = (typeof TIPOS_MOVIMIENTO_CAJA)[number]
+
+export const METODOS_PAGO_CAJA = [...METODOS_PAGO, 'mixto'] as const
+export type MetodoPagoCaja = (typeof METODOS_PAGO_CAJA)[number]
+
+export const ETIQUETAS_METODO_CAJA: Record<MetodoPagoCaja, string> = {
+  ...ETIQUETAS_METODO_PAGO,
+  mixto: 'Mixto',
+}

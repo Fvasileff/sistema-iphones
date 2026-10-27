@@ -1,40 +1,25 @@
 import { NextResponse } from 'next/server'
-import twilio from 'twilio'
+import { requerirSesion } from '@/lib/api-auth'
+import { ErrorApi, manejarErrorApi } from '@/lib/errores'
+import { enviarWhatsapp } from '@/lib/whatsapp'
 
-const accountSid = process.env.TWILIO_ACCOUNT_SID
-const authToken = process.env.TWILIO_AUTH_TOKEN
-const twilioNumber = process.env.TWILIO_WHATSAPP_NUMBER
-
-const client = twilio(accountSid, authToken)
+export const dynamic = 'force-dynamic'
 
 export async function POST(request: Request) {
+  const sinSesion = await requerirSesion()
+  if (sinSesion) return sinSesion
+
   try {
     const { to, message } = await request.json()
 
     if (!to || !message) {
-      return NextResponse.json(
-        { error: 'Faltan parámetros obligatorios: "to" (teléfono) o "message" (texto)' },
-        { status: 400 }
-      )
+      throw new ErrorApi('Faltan parámetros obligatorios: "to" (teléfono) o "message" (texto)', 400)
     }
 
-    // Limpiamos cualquier prefijo duplicado y formateamos correctamente
-    let limpioTo = to.trim()
-    limpioTo = limpioTo.replace('whatsapp:', '').replace(/^\+/, '')
-    const formattedTo = `whatsapp:+${limpioTo}`
-
-    const response = await client.messages.create({
-      body: message,
-      from: twilioNumber,
-      to: formattedTo,
-    })
+    const response = await enviarWhatsapp(String(to), String(message))
 
     return NextResponse.json({ success: true, sid: response.sid })
-  } catch (error: any) {
-    console.error('Error enviando WhatsApp vía Twilio:', error)
-    return NextResponse.json(
-      { error: error.message || 'Error interno al procesar el envío de WhatsApp' },
-      { status: 500 }
-    )
+  } catch (error) {
+    return manejarErrorApi(error)
   }
 }

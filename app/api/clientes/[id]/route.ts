@@ -27,9 +27,9 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
           },
           orderBy: { fechaVenta: 'desc' },
         },
-        ventasProducto: {
+        ventasContado: {
           include: {
-            items: { include: { producto: true } },
+            items: { include: { producto: true, iphone: true } },
           },
           orderBy: { fechaVenta: 'desc' },
         },

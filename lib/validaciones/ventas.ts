@@ -2,25 +2,27 @@ import { z } from 'zod'
 import { METODOS_PAGO } from '@/lib/constantes'
 import { textoOpcional, textoOpcionalUpdate } from '@/lib/validaciones/comunes'
 
-export const ventaProductoItemSchema = z.object({
-  productoId: z.string().uuid('Producto inválido'),
+export const ventaContadoItemSchema = z.object({
+  tipo: z.enum(['producto', 'iphone'], { message: 'Tipo de ítem inválido' }),
+  id: z.string().uuid('Ítem inválido'),
   cantidad: z.coerce.number().int().positive('La cantidad debe ser mayor a 0'),
   precioUnitario: z.coerce.number().min(0, 'El precio no puede ser negativo').optional(),
 })
 
-export const ventaProductoSchema = z.object({
-  clienteId: z.string().uuid('Cliente inválido').optional().nullable(),
+export const pagoDetalleSchema = z.object({
   metodoPago: z.enum(METODOS_PAGO),
-  observaciones: textoOpcional(500),
-  items: z.array(ventaProductoItemSchema).min(1, 'Agregá al menos un producto'),
+  monto: z.coerce.number().min(0, 'El monto no puede ser negativo'),
 })
 
-export const ventaIphoneContadoSchema = z.object({
+const pagosSchema = z
+  .array(pagoDetalleSchema)
+  .min(1, 'Indicá al menos un medio de pago')
+
+export const ventaContadoSchema = z.object({
   clienteId: z.string().uuid('Cliente inválido').optional().nullable(),
-  iphoneId: z.string().uuid('iPhone inválido'),
-  precioVenta: z.coerce.number().positive('El precio de venta debe ser mayor a 0'),
-  metodoPago: z.enum(METODOS_PAGO),
+  pagos: pagosSchema,
   observaciones: textoOpcional(500),
+  items: z.array(ventaContadoItemSchema).min(1, 'Agregá al menos un ítem').max(100),
 })
 
 export const ventaFinanciadaSchema = z.object({

@@ -30,7 +30,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           id: usuario.id,
           name: usuario.nombre,
           email: usuario.email,
-          image: usuario.rol // Usamos la imagen para pasar el rol temporalmente
         }
       }
     })
@@ -38,16 +37,4 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   pages: {
     signIn: '/login', // Si no están logueados, los manda acá
   },
-  callbacks: {
-    async jwt({ token, user }) {
-      if (user) token.rol = user.image
-      return token
-    },
-    async session({ session, token }) {
-      if (session.user) {
-        // Acá podrías agregar el rol a la sesión si lo necesitas
-      }
-      return session
-    }
-  }
 })

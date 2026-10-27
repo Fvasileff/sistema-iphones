@@ -10,6 +10,7 @@ import {
 } from '@/lib/constantes'
 import { formatARS } from '@/lib/format'
 import { formatFechaAR, formatFechaHoraAR } from '@/lib/fechas'
+import { useToast } from '@/app/components/ToastProvider'
 import TicketModal, { type TicketData } from '@/app/components/TicketModal'
 
 type Monto = number | string
@@ -152,7 +153,7 @@ function DatoEquipo({ etiqueta, valor }: { etiqueta: string; valor: string | nul
   return (
     <div>
       <p className="text-zinc-500 text-[10px] uppercase tracking-wider">{etiqueta}</p>
-      <p className="text-zinc-200 text-sm break-words">{valor}</p>
+      <p className="text-zinc-200 text-sm wrap-break-word">{valor}</p>
     </div>
   )
 }
@@ -227,8 +228,8 @@ function ModalPago({
   }
 
   return (
-    <div className="fixed inset-0 bg-black/65 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
-      <div className="bg-zinc-900 border border-zinc-700 rounded-t-2xl sm:rounded-2xl p-5 sm:p-6 w-full sm:max-w-md shadow-2xl">
+    <div className="animate-fade-in fixed inset-0 z-50 flex items-end justify-center bg-black/75 p-0 backdrop-blur-sm sm:items-center sm:p-4">
+      <div className="animate-modal-in w-full rounded-t-2xl border border-zinc-700 bg-zinc-900 p-5 shadow-2xl shadow-black/50 sm:max-w-md sm:rounded-2xl sm:p-6">
         <div className="flex items-center justify-between gap-3 mb-1">
           <h2 className="text-white font-bold text-lg">Registrar pago</h2>
           <button
@@ -364,8 +365,8 @@ function ModalRepuesto({
   }
 
   return (
-    <div className="fixed inset-0 bg-black/65 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
-      <div className="bg-zinc-900 border border-zinc-700 rounded-t-2xl sm:rounded-2xl p-5 sm:p-6 w-full sm:max-w-md shadow-2xl">
+    <div className="animate-fade-in fixed inset-0 z-50 flex items-end justify-center bg-black/75 p-0 backdrop-blur-sm sm:items-center sm:p-4">
+      <div className="animate-modal-in w-full rounded-t-2xl border border-zinc-700 bg-zinc-900 p-5 shadow-2xl shadow-black/50 sm:max-w-md sm:rounded-2xl sm:p-6">
         <div className="flex items-center justify-between gap-3 mb-1">
           <h2 className="text-white font-bold text-lg">Agregar repuesto</h2>
           <button
@@ -464,6 +465,7 @@ function ModalRepuesto({
 }
 
 export default function ReparacionDetallePage() {
+  const toast = useToast()
   const params = useParams<{ id: string }>()
   const id = params.id
 
@@ -471,7 +473,6 @@ export default function ReparacionDetallePage() {
   const [productos, setProductos] = useState<Producto[]>([])
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState('')
-  const [aviso, setAviso] = useState('')
   const [ticket, setTicket] = useState<TicketData | null>(null)
 
   const [estadoForm, setEstadoForm] = useState<EstadoReparacion>('recibido')
@@ -532,14 +533,13 @@ export default function ReparacionDetallePage() {
     if (!reparacion || estadoForm === reparacion.estado) return
     setGuardandoEstado(true)
     setError('')
-    setAviso('')
     try {
       await solicitar(`/api/reparaciones/${reparacion.id}`, 'PATCH', {
         estado: estadoForm,
         nota: notaEstado || undefined,
       })
       setNotaEstado('')
-      setAviso('Estado actualizado.')
+      toast.success('Estado actualizado.')
       await refrescar()
     } catch (e) {
       setError(e instanceof Error ? e.message : 'No se pudo actualizar el estado')
@@ -553,7 +553,6 @@ export default function ReparacionDetallePage() {
     if (!reparacion) return
     setGuardandoMontos(true)
     setError('')
-    setAviso('')
     try {
       const payload: { presupuesto?: number; montoFinal?: number | null } = {}
       const nuevoPresupuesto = Number(presupuestoForm) || 0
@@ -569,12 +568,12 @@ export default function ReparacionDetallePage() {
       }
 
       if (Object.keys(payload).length === 0) {
-        setAviso('No hay cambios de montos para guardar.')
+        toast.toast('No hay cambios de montos para guardar.', 'info')
         return
       }
 
       await solicitar(`/api/reparaciones/${reparacion.id}`, 'PATCH', payload)
-      setAviso('Montos actualizados.')
+      toast.success('Montos actualizados.')
       await refrescar()
     } catch (e) {
       setError(e instanceof Error ? e.message : 'No se pudieron actualizar los montos')
@@ -588,14 +587,13 @@ export default function ReparacionDetallePage() {
     const motivo = window.prompt(`Motivo para anular el pago ${pago.codigoOperacion}:`)
     if (!motivo || motivo.trim().length < 3) return
     setError('')
-    setAviso('')
     try {
       await solicitar(
         `/api/reparaciones/${reparacion.id}/pagos/${pago.id}/anular`,
         'POST',
         { motivo: motivo.trim() },
       )
-      setAviso('Pago anulado.')
+      toast.success('Pago anulado.')
       await refrescar()
     } catch (e) {
       setError(e instanceof Error ? e.message : 'No se pudo anular el pago')
@@ -607,14 +605,13 @@ export default function ReparacionDetallePage() {
     const motivo = window.prompt(`Motivo para anular el repuesto ${repuesto.producto.nombre}:`)
     if (!motivo || motivo.trim().length < 3) return
     setError('')
-    setAviso('')
     try {
       await solicitar(
         `/api/reparaciones/${reparacion.id}/repuestos/${repuesto.id}/anular`,
         'POST',
         { motivo: motivo.trim() },
       )
-      setAviso('Repuesto anulado y stock restituido.')
+      toast.success('Repuesto anulado y stock restituido.')
       await refrescar()
     } catch (e) {
       setError(e instanceof Error ? e.message : 'No se pudo anular el repuesto')
@@ -628,12 +625,11 @@ export default function ReparacionDetallePage() {
     )
     if (!motivo || motivo.trim().length < 3) return
     setError('')
-    setAviso('')
     try {
       await solicitar(`/api/reparaciones/${reparacion.id}/anular`, 'POST', {
         motivo: motivo.trim(),
       })
-      setAviso('Reparación anulada.')
+      toast.success('Reparación anulada.')
       await refrescar()
     } catch (e) {
       setError(e instanceof Error ? e.message : 'No se pudo anular la reparación')
@@ -677,8 +673,22 @@ export default function ReparacionDetallePage() {
 
   if (cargando) {
     return (
-      <div className="p-4 md:p-8">
-        <p className="text-zinc-500 text-center py-20 text-sm">Cargando reparación...</p>
+      <div className="mx-auto max-w-6xl p-4 md:p-8">
+        <div className="skeleton h-3 w-28 rounded" />
+        <div className="mt-4 flex items-center gap-3">
+          <div className="skeleton h-8 w-40 rounded" />
+          <div className="skeleton h-6 w-24 rounded-full" />
+        </div>
+        <div className="mt-6 grid gap-5 lg:grid-cols-3">
+          <div className="space-y-4 lg:col-span-2">
+            <div className="skeleton h-48 w-full rounded-2xl" />
+            <div className="skeleton h-40 w-full rounded-2xl" />
+          </div>
+          <div className="space-y-4">
+            <div className="skeleton h-36 w-full rounded-2xl" />
+            <div className="skeleton h-56 w-full rounded-2xl" />
+          </div>
+        </div>
       </div>
     )
   }
@@ -752,12 +762,6 @@ export default function ReparacionDetallePage() {
           )}
         </div>
       </div>
-
-      {aviso && (
-        <div className="p-3 rounded-xl mb-4 text-sm font-semibold bg-green-500/10 text-green-400 border border-green-500/20">
-          ✅ {aviso}
-        </div>
-      )}
 
       {error && (
         <div className="p-3 rounded-xl mb-4 text-sm font-semibold bg-red-500/10 text-red-400 border border-red-500/20">
@@ -858,7 +862,7 @@ export default function ReparacionDetallePage() {
                   >
                     <div className="min-w-0">
                       <p
-                        className={`text-sm font-medium break-words ${
+                        className={`text-sm font-medium wrap-break-word ${
                           repuesto.anulada ? 'text-zinc-500 line-through' : 'text-white'
                         }`}
                       >
@@ -1141,7 +1145,7 @@ export default function ReparacionDetallePage() {
           onClose={() => setModalPago(false)}
           onCobrado={async nuevoTicket => {
             setTicket(nuevoTicket)
-            setAviso('Pago registrado e ingresado a caja.')
+            toast.success('Pago registrado e ingresado a caja.')
             await refrescar()
           }}
         />
@@ -1153,7 +1157,7 @@ export default function ReparacionDetallePage() {
           productos={productos}
           onClose={() => setModalRepuesto(false)}
           onAgregado={async () => {
-            setAviso('Repuesto agregado y stock descontado.')
+            toast.success('Repuesto agregado y stock descontado.')
             await refrescar()
           }}
         />

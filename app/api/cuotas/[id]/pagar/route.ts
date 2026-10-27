@@ -59,8 +59,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       if (total > 0) {
         await registrarMovimientoCaja(tx, {
           tipo: 'cobro_cuota',
-          metodoPago: data.metodoPago,
-          monto: total,
+          pagos: [{ metodoPago: data.metodoPago, monto: total }],
           descripcion: `Cobro cuota ${cuota.numeroCuota}/${cuota.venta.totalCuotas}`,
           codigoOperacion,
           referenciaTipo: 'pago_cuota',

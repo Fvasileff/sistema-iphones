@@ -1,42 +1,50 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { requerirSesion } from '@/lib/api-auth'
+import { manejarErrorApi } from '@/lib/errores'
+
+export const dynamic = 'force-dynamic'
 
 export async function GET(req: Request) {
-  const { searchParams } = new URL(req.url)
-  const clienteId = searchParams.get('clienteId')
-  const estado = searchParams.get('estado')
+  const sinSesion = await requerirSesion()
+  if (sinSesion) return sinSesion
 
   try {
+    const { searchParams } = new URL(req.url)
+    const clienteId = searchParams.get('clienteId')
+    const estado = searchParams.get('estado')
+
     const cuotas = await prisma.cuota.findMany({
       where: {
         ...(estado && estado !== 'todos' && { estado }),
         venta: {
-          ...(clienteId && { clienteId })
-        }
+          anulada: false,
+          ...(clienteId && { clienteId }),
+        },
       },
       include: {
         venta: {
           include: {
             cliente: true,
-            iphone: true
-          }
-        }
+            iphone: true,
+          },
+        },
       },
-      orderBy: { fechaVencimiento: 'asc' }
+      orderBy: { fechaVencimiento: 'asc' },
     })
 
-    // Declaramos 'hoy' aquí, antes del .map()
-    const hoy = new Date()
+    const ahora = new Date()
 
-    const cuotasConEstado = cuotas.map((c: any) => ({
-      ...c,
-      estado: c.estado === 'pendiente' && new Date(c.fechaVencimiento) < hoy 
-        ? 'vencida' 
-        : c.estado
+    const cuotasConEstado = cuotas.map(cuota => ({
+      ...cuota,
+      estado:
+        cuota.estado === 'pendiente' && cuota.fechaVencimiento < ahora
+          ? 'vencida'
+          : cuota.estado,
     }))
 
     return NextResponse.json(cuotasConEstado)
   } catch (error) {
-    return NextResponse.json({ error: 'Error al obtener cuotas' }, { status: 500 })
+    return manejarErrorApi(error)
   }
 }

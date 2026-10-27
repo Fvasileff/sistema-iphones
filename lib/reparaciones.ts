@@ -13,6 +13,11 @@ export const includeReparacion = {
   },
 } satisfies Prisma.ReparacionInclude
 
+export const includeReparacionLista = {
+  cliente: true,
+  pagos: { where: { anulada: false }, orderBy: { fecha: 'asc' } },
+} satisfies Prisma.ReparacionInclude
+
 export function parseFechaPromesa(valor: string | null | undefined) {
   if (!valor) return null
   try {

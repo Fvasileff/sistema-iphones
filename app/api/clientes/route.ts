@@ -1,5 +1,5 @@
 // app/api/clientes/route.ts
-import { NextResponse } from 'next/server'
+import { NextResponse, after } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
 import { Logger } from 'next-axiom'
@@ -13,17 +13,17 @@ export async function GET() {
     const session = await auth()
     if (!session) {
       logger.warn('GET /api/clientes: sin sesión válida')
-      await logger.flush()
+      after(() => logger.flush())
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
     }
 
     const clientes = await prisma.cliente.findMany({ orderBy: { nombre: 'asc' } })
     logger.info('GET /api/clientes: ok', { cantidad: clientes.length })
-    await logger.flush()
+    after(() => logger.flush())
     return NextResponse.json(clientes)
   } catch (error) {
     logger.error('GET /api/clientes: error', { error: String(error) })
-    await logger.flush()
+    after(() => logger.flush())
     return NextResponse.json({ error: 'Error al obtener clientes' }, { status: 500 })
   }
 }
@@ -35,7 +35,7 @@ export async function POST(request: Request) {
     const session = await auth()
     if (!session) {
       logger.warn('POST /api/clientes: sin sesión válida')
-      await logger.flush()
+      after(() => logger.flush())
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
     }
 
@@ -44,14 +44,14 @@ export async function POST(request: Request) {
 
     if (!nombre || !apellido || !dni || !telefono) {
       logger.warn('POST /api/clientes: faltan campos obligatorios', { body })
-      await logger.flush()
+      after(() => logger.flush())
       return NextResponse.json({ error: 'Faltan campos obligatorios' }, { status: 400 })
     }
 
     const existe = await prisma.cliente.findUnique({ where: { dni } })
     if (existe) {
       logger.warn('POST /api/clientes: DNI duplicado', { dni })
-      await logger.flush()
+      after(() => logger.flush())
       return NextResponse.json({ error: 'El DNI ya está registrado' }, { status: 400 })
     }
 
@@ -67,11 +67,11 @@ export async function POST(request: Request) {
     })
 
     logger.info('POST /api/clientes: cliente creado', { id: nuevoCliente.id })
-    await logger.flush()
+    after(() => logger.flush())
     return NextResponse.json(nuevoCliente, { status: 201 })
   } catch (error) {
     logger.error('POST /api/clientes: error', { error: String(error) })
-    await logger.flush()
+    after(() => logger.flush())
     return NextResponse.json({ error: 'Error al guardar el cliente' }, { status: 500 })
   }
 }

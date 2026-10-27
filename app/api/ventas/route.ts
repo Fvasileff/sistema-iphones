@@ -45,7 +45,12 @@ export async function POST(request: Request) {
 
       if (!cliente) throw new ErrorApi('Cliente no encontrado', 404)
       if (!iphone) throw new ErrorApi('iPhone no encontrado', 404)
-      if (iphone.stock <= 0) throw new ErrorApi('El iPhone no tiene stock disponible', 409)
+
+      const descuento = await tx.iPhone.updateMany({
+        where: { id: iphone.id, activo: true, stock: { gt: 0 } },
+        data: { stock: { decrement: 1 } },
+      })
+      if (descuento.count === 0) throw new ErrorApi('El iPhone no tiene stock disponible', 409)
 
       const codigoOperacion = await generarCodigoOperacion(tx)
 
@@ -56,6 +61,7 @@ export async function POST(request: Request) {
           usuarioId: usuario.id,
           precioVenta: data.precioVenta,
           anticipoEfectivo: data.anticipoEfectivo,
+          metodoAnticipo: data.metodoAnticipo,
           anticipoEquipo: data.anticipoEquipo,
           descripcionEquipo: data.descripcionEquipo,
           planPago: data.planPago,
@@ -76,16 +82,10 @@ export async function POST(request: Request) {
         })),
       })
 
-      await tx.iPhone.update({
-        where: { id: iphone.id },
-        data: { stock: { decrement: 1 } },
-      })
-
       if (data.anticipoEfectivo > 0) {
         await registrarMovimientoCaja(tx, {
           tipo: 'venta_financiada',
-          metodoPago: data.metodoAnticipo,
-          monto: data.anticipoEfectivo,
+          pagos: [{ metodoPago: data.metodoAnticipo, monto: data.anticipoEfectivo }],
           descripcion: `Anticipo financiación ${codigoOperacion}`,
           codigoOperacion,
           referenciaTipo: 'venta',

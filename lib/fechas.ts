@@ -140,6 +140,19 @@ export function formatFechaHoraAR(fecha: Date | string | null | undefined) {
   }).format(valor)
 }
 
+export function formatHoraAR(fecha: Date | string | null | undefined) {
+  if (!fecha) return '—'
+  const valor = aFecha(fecha)
+  if (Number.isNaN(valor.getTime())) return '—'
+
+  return new Intl.DateTimeFormat('es-AR', {
+    timeZone: ZONA_HORARIA_AR,
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).format(valor)
+}
+
 export function fechaISOAR(fecha: Date | string | null | undefined) {
   if (!fecha) return ''
   const valor = aFecha(fecha)
@@ -154,4 +167,25 @@ export function fechaHoraInputAR(fecha: Date | string | null | undefined) {
   if (Number.isNaN(valor.getTime())) return ''
   const { anio, mes, dia, hora, minuto } = partesEnAR(valor)
   return `${anio}-${pad2(mes)}-${pad2(dia)}T${pad2(hora)}:${pad2(minuto)}`
+}
+
+export function mesAnioAR(fecha = new Date()) {
+  const { anio, mes } = partesEnAR(fecha)
+  return { anio, mes }
+}
+
+export function rangoMesAR(anio: number, mes: number) {
+  const inicio = inicioDiaAR(`${anio}-${pad2(mes)}-01`)
+  const siguienteAnio = mes === 12 ? anio + 1 : anio
+  const siguienteMes = mes === 12 ? 1 : mes + 1
+  const finExclusive = inicioDiaAR(`${siguienteAnio}-${pad2(siguienteMes)}-01`)
+
+  return { inicio, fin: new Date(finExclusive.getTime() - 1) }
+}
+
+export function rangoAnioAR(anio: number) {
+  const inicio = inicioDiaAR(`${anio}-01-01`)
+  const finExclusive = inicioDiaAR(`${anio + 1}-01-01`)
+
+  return { inicio, fin: new Date(finExclusive.getTime() - 1) }
 }

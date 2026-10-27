@@ -49,7 +49,7 @@ async function main() {
       orderBy: { codigoOperacion: 'desc' },
       select: { codigoOperacion: true },
     }),
-    prisma.ventaProducto.findFirst({
+    prisma.ventaContado.findFirst({
       orderBy: { codigoOperacion: 'desc' },
       select: { codigoOperacion: true },
     }),
