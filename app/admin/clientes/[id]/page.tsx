@@ -12,11 +12,16 @@ import { formatFechaAR, formatFechaHoraAR } from '@/lib/fechas'
 
 type Monto = number | string
 
+interface IphoneVariant {
+  id: string
+  color: string
+  stock: number
+}
+
 interface Iphone {
   id: string
   modelo: string
-  variante: string | null
-  color: string
+  variante: string
   almacenamiento: string
 }
 
@@ -55,6 +60,7 @@ interface VentaFinanciada {
   anulada: boolean
   motivoAnulacion: string | null
   iphone: Iphone
+  iphoneVariant: IphoneVariant | null
   cuotas: Cuota[]
 }
 
@@ -69,6 +75,7 @@ interface VentaContadoItem {
     categoria: string
   } | null
   iphone: Iphone | null
+  iphoneVariant: IphoneVariant | null
 }
 
 interface VentaContado {
@@ -260,8 +267,8 @@ function VentaFinanciadaCard({ venta }: { venta: VentaFinanciada }) {
             <p className="text-white font-semibold text-sm">
               {venta.iphone.modelo} {venta.iphone.almacenamiento}
             </p>
-            {venta.iphone.color && (
-              <span className="text-zinc-500 text-xs">{venta.iphone.color}</span>
+            {venta.iphoneVariant?.color && (
+              <span className="text-zinc-500 text-xs">{venta.iphoneVariant.color}</span>
             )}
             {venta.anulada ? (
               <Badge tono="rojo">Anulada</Badge>
@@ -456,7 +463,7 @@ function CompraRow({ venta }: { venta: VentaContado }) {
               const descripcion =
                 item.producto?.nombre ??
                 (item.iphone
-                  ? `${item.iphone.modelo} ${item.iphone.almacenamiento}`
+                  ? `${item.iphone.modelo} ${item.iphone.almacenamiento}${item.iphoneVariant ? ` ${item.iphoneVariant.color}` : ''}`
                   : 'Ítem')
               return `${item.cantidad}x ${descripcion}`
             })

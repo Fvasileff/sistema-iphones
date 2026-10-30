@@ -23,10 +23,15 @@ interface ClienteDetalle {
   direccion?: string | null
 }
 
+interface IphoneVariantDetalle {
+  id: string
+  color: string
+  stock: number
+}
+
 interface IphoneDetalle {
   modelo: string
-  variante: string | null
-  color: string
+  variante: string
   almacenamiento: string
 }
 
@@ -43,6 +48,7 @@ interface ItemVentaDetalle {
   subtotal: Monto
   producto: ProductoDetalle | null
   iphone: IphoneDetalle | null
+  iphoneVariant: IphoneVariantDetalle | null
 }
 
 interface PagoDetalle {
@@ -99,6 +105,7 @@ interface VentaFinanciadaDetalle {
   motivoAnulacion: string | null
   cliente: ClienteDetalle
   iphone: IphoneDetalle
+  iphoneVariant: IphoneVariantDetalle | null
   cuotas: CuotaDetalle[]
 }
 
@@ -110,6 +117,7 @@ interface PagoCuotaDetalle extends PagoDetalle {
       precioVenta: Monto
       cliente: ClienteDetalle
       iphone: IphoneDetalle
+      iphoneVariant: IphoneVariantDetalle | null
     }
   }
 }
@@ -282,7 +290,7 @@ function nombreCliente(cliente: ClienteDetalle | null | undefined) {
 function nombreItem(item: ItemVentaDetalle) {
   if (item.producto) return item.producto.nombre
   if (item.iphone) {
-    return `${item.iphone.modelo} ${item.iphone.almacenamiento} ${item.iphone.color}`
+    return `${item.iphone.modelo} ${item.iphone.almacenamiento}${item.iphoneVariant ? ` ${item.iphoneVariant.color}` : ''}`
   }
   return 'Ítem'
 }
@@ -499,7 +507,7 @@ function DetalleVentaFinanciada({
         <div className="grid sm:grid-cols-2 gap-3">
           <Dato
             label="iPhone"
-            valor={`${detalle.iphone.modelo} ${detalle.iphone.almacenamiento} ${detalle.iphone.color}`}
+            valor={`${detalle.iphone.modelo} ${detalle.iphone.almacenamiento}${detalle.iphoneVariant ? ` ${detalle.iphoneVariant.color}` : ''}`}
           />
           <Dato label="Precio de venta" valor={formatARS(detalle.precioVenta)} />
         </div>

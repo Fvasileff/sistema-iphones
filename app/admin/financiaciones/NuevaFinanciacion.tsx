@@ -10,15 +10,20 @@ interface Cliente {
   dni: string
 }
 
+interface IphoneVariant {
+  id: string
+  color: string
+  stock: number
+}
+
 interface iPhone {
   id: string
   modelo: string
-  variante: string | null
+  variante: string
   almacenamiento: string
-  color: string
-  stock: number
   precioBase: number
   activo?: boolean
+  variantes: IphoneVariant[]
 }
 
 // Helper para formatear en pesos de forma limpia sin centavos
@@ -135,6 +140,7 @@ export default function RegistrarVentaPage() {
 
   const [clienteId, setClienteId] = useState('')
   const [iphoneId, setIphoneId] = useState('')
+  const [colorId, setColorId] = useState('')
   const [precioVenta, setPrecioVenta] = useState('')
   const [anticipoEfectivo, setAnticipoEfectivo] = useState('0')
   const [metodoAnticipo, setMetodoAnticipo] = useState('efectivo')
@@ -149,7 +155,8 @@ export default function RegistrarVentaPage() {
   const [cargando, setCargando] = useState(false)
 
   const iphoneSeleccionado = iphones.find(i => i.id === iphoneId)
-  const sinStock = iphoneSeleccionado ? iphoneSeleccionado.stock <= 0 : false
+  const varianteSeleccionada = iphoneSeleccionado?.variantes.find(v => v.id === colorId)
+  const sinStock = varianteSeleccionada ? varianteSeleccionada.stock <= 0 : false
   const precio = parseFloat(precioVenta) || 0
   const anticipo = (parseFloat(anticipoEfectivo) || 0) + (parseFloat(anticipoEquipo) || 0)
   const saldo = precio - anticipo
@@ -187,10 +194,11 @@ export default function RegistrarVentaPage() {
   }
 
   // 🚀 CORREGIDO: Ahora lee correctamente 'precioBase' al seleccionar el equipo
-  const handleIphoneChange = (id: string) => {
-    setIphoneId(id)
-    const seleccionado = iphones.find(i => i.id === id)
+  const handleVarianteChange = (id: string) => {
+    setColorId(id)
+    const seleccionado = iphones.find(i => i.variantes.some(v => v.id === id))
     if (seleccionado) {
+      setIphoneId(seleccionado.id)
       setPrecioVenta(String(seleccionado.precioBase))
     }
     setMontoCuotaManual('')
@@ -198,18 +206,25 @@ export default function RegistrarVentaPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (sinStock) return
+    if (!iphoneId || !colorId) {
+      toast.error('Seleccioná un iPhone y un color')
+      return
+    }
+    if (sinStock) {
+      toast.error('El color seleccionado no tiene stock disponible')
+      return
+    }
     setCargando(true)
     try {
       const res = await fetch('/api/ventas', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clienteId, iphoneId, precioVenta, anticipoEfectivo, metodoAnticipo, anticipoEquipo, descripcionEquipo, planPago, totalCuotas, montoCuota, interesPct, fechaPrimeraCuota })
+        body: JSON.stringify({ clienteId, iphoneId, colorId, precioVenta, anticipoEfectivo, metodoAnticipo, anticipoEquipo, descripcionEquipo, planPago, totalCuotas, montoCuota, interesPct, fechaPrimeraCuota })
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Error al procesar la venta')
       toast.success('Financiación registrada y cuotas generadas con éxito.')
-      setClienteId(''); setIphoneId(''); setPrecioVenta('')
+      setClienteId(''); setIphoneId(''); setColorId(''); setPrecioVenta('')
       setAnticipoEfectivo('0'); setMetodoAnticipo('efectivo'); setAnticipoEquipo('0'); setDescripcionEquipo('')
       setMontoCuotaManual(''); setInteresPct('0'); setFechaPrimeraCuota('')
     } catch (error) {
@@ -246,17 +261,18 @@ export default function RegistrarVentaPage() {
             </Field>
             <Field label="iPhone" required>
               <Dropdown
-                value={iphoneId}
+                value={colorId}
                 placeholder="Elegir equipo..."
                 error={sinStock}
-                options={iphones.map(i => ({
-                  // 🚀 CORREGIDO: Usa i.precioBase y formatARS para mostrar el precio real de lista
-                  label: `${i.modelo}${i.variante ? ' ' + i.variante : ''} (${i.almacenamiento} · ${i.color}) — ${formatARS(i.precioBase)}`,
-                  value: i.id,
-                  disabled: i.stock <= 0,
-                  badge: i.stock <= 0 ? 'AGOTADO' : `Stock: ${i.stock}`,
-                }))}
-                onChange={handleIphoneChange}
+                options={iphones.flatMap(i =>
+                  i.variantes.map(v => ({
+                    label: `${i.modelo}${i.variante ? ' ' + i.variante : ''} (${i.almacenamiento} · ${v.color}) — ${formatARS(i.precioBase)}`,
+                    value: v.id,
+                    disabled: v.stock <= 0,
+                    badge: v.stock <= 0 ? 'AGOTADO' : `Stock: ${v.stock}`,
+                  })),
+                )}
+                onChange={handleVarianteChange}
               />
             </Field>
           </div>

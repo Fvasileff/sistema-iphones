@@ -40,17 +40,23 @@ export async function POST(request: Request) {
     const resultado = await prisma.$transaction(async tx => {
       const [cliente, iphone] = await Promise.all([
         tx.cliente.findUnique({ where: { id: data.clienteId } }),
-        tx.iPhone.findUnique({ where: { id: data.iphoneId } }),
+        tx.iPhone.findUnique({
+          where: { id: data.iphoneId },
+          include: { variantes: true },
+        }),
       ])
 
       if (!cliente) throw new ErrorApi('Cliente no encontrado', 404)
       if (!iphone) throw new ErrorApi('iPhone no encontrado', 404)
 
-      const descuento = await tx.iPhone.updateMany({
-        where: { id: iphone.id, activo: true, stock: { gt: 0 } },
+      const variante = iphone.variantes.find(color => color.id === data.colorId)
+      if (!variante) throw new ErrorApi('El color seleccionado no pertenece al iPhone', 400)
+
+      const descuento = await tx.iphoneVariant.updateMany({
+        where: { id: variante.id, iphoneId: iphone.id, iphone: { activo: true }, stock: { gt: 0 } },
         data: { stock: { decrement: 1 } },
       })
-      if (descuento.count === 0) throw new ErrorApi('El iPhone no tiene stock disponible', 409)
+      if (descuento.count === 0) throw new ErrorApi('El color seleccionado no tiene stock disponible', 409)
 
       const codigoOperacion = await generarCodigoOperacion(tx)
 
@@ -58,6 +64,7 @@ export async function POST(request: Request) {
         data: {
           clienteId: cliente.id,
           iphoneId: iphone.id,
+          colorId: variante.id,
           usuarioId: usuario.id,
           precioVenta: data.precioVenta,
           anticipoEfectivo: data.anticipoEfectivo,
@@ -99,14 +106,18 @@ export async function POST(request: Request) {
     try {
       const [cliente, iphone] = await Promise.all([
         prisma.cliente.findUnique({ where: { id: data.clienteId } }),
-        prisma.iPhone.findUnique({ where: { id: data.iphoneId } }),
+        prisma.iPhone.findUnique({
+          where: { id: data.iphoneId },
+          include: { variantes: true },
+        }),
       ])
 
       if (cliente && iphone) {
+        const color = iphone.variantes.find(variante => variante.id === data.colorId)
         await whatsappNuevaFinanciacion(
           cliente.telefono,
           `${cliente.nombre} ${cliente.apellido}`,
-          `${iphone.modelo} ${iphone.almacenamiento}`,
+          `${iphone.modelo} ${iphone.almacenamiento}${color ? ` ${color.color}` : ''}`,
           data.totalCuotas,
           data.montoCuota,
         )

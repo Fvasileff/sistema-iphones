@@ -3,14 +3,45 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useToast } from '@/app/components/ToastProvider'
 
+interface VarianteStock {
+  id: string
+  color: string
+  stock: number
+}
+
 interface iPhone {
   id: string
   modelo: string
-  color: string
+  variante?: string
   almacenamiento: string
   precioBase: number
-  stock: number
+  variantes: VarianteStock[]
+  stockTotal?: number
 }
+
+interface ColorForm {
+  id?: string
+  color: string
+  stock: string
+}
+
+const COLORES_COMUNES = [
+  'Medianoche',
+  'Blanco estelar',
+  'Negro',
+  'Blanco',
+  'Azul',
+  'Celeste',
+  'Rojo',
+  'Rosa',
+  'Verde',
+  'Amarillo',
+  'Morado',
+  'Titanio natural',
+  'Titanio negro',
+  'Titanio blanco',
+  'Titanio desierto',
+]
 
 const inputClass =
   'w-full rounded-xl border border-zinc-700/80 bg-zinc-950/60 px-3.5 py-2.5 text-sm text-white placeholder-zinc-600 transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20'
@@ -21,6 +52,9 @@ const formatARS = (valor: number) =>
     currency: 'ARS',
     maximumFractionDigits: 0,
   }).format(valor)
+
+const stockTotal = (phone: iPhone) =>
+  phone.stockTotal ?? phone.variantes.reduce((acc, variante) => acc + variante.stock, 0)
 
 function Field({
   label,
@@ -41,6 +75,65 @@ function Field({
   )
 }
 
+function ColorRows({
+  rows,
+  onChange,
+  minRows = 0,
+  required = false,
+}: {
+  rows: ColorForm[]
+  onChange: (rows: ColorForm[]) => void
+  minRows?: number
+  required?: boolean
+}) {
+  const actualizar = (index: number, cambios: Partial<ColorForm>) =>
+    onChange(rows.map((row, i) => (i === index ? { ...row, ...cambios } : row)))
+
+  return (
+    <div className="space-y-2">
+      {rows.map((row, index) => (
+        <div key={index} className="flex items-center gap-2">
+          <input
+            required={required}
+            list="colores-comunes"
+            type="text"
+            value={row.color}
+            onChange={e => actualizar(index, { color: e.target.value })}
+            placeholder="Color"
+            className={inputClass}
+          />
+          <input
+            required={required}
+            type="number"
+            min="0"
+            value={row.stock}
+            onChange={e => actualizar(index, { stock: e.target.value })}
+            placeholder="Stock"
+            className={`${inputClass} w-24 text-center`}
+          />
+          {rows.length > minRows && (
+            <button
+              type="button"
+              onClick={() => onChange(rows.filter((_, i) => i !== index))}
+              aria-label="Quitar color"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-zinc-800 text-zinc-500 transition hover:border-red-500/40 hover:text-red-300"
+            >
+              ✕
+            </button>
+          )}
+        </div>
+      ))}
+      <button
+        type="button"
+        onClick={() => onChange([...rows, { color: '', stock: '1' }])}
+        className="text-xs font-semibold text-blue-400 transition hover:text-blue-300"
+      >
+        + Agregar color
+      </button>
+    </div>
+  )
+}
+
 export default function CatalogoIphones() {
   const toast = useToast()
   const [iphones, setIphones] = useState<iPhone[]>([])
@@ -50,15 +143,16 @@ export default function CatalogoIphones() {
   const [isSaving, setIsSaving] = useState(false)
   const [busqueda, setBusqueda] = useState('')
 
+  // edición
   const [editandoId, setEditandoId] = useState<string | null>(null)
   const [editPrecio, setEditPrecio] = useState('')
-  const [editStock, setEditStock] = useState('')
+  const [editVariantes, setEditVariantes] = useState<ColorForm[]>([])
 
+  // alta
   const [modelo, setModelo] = useState('')
   const [almacenamiento, setAlmacenamiento] = useState('')
-  const [color, setColor] = useState('')
   const [precioBase, setPrecioBase] = useState('')
-  const [stock, setStock] = useState('1')
+  const [coloresForm, setColoresForm] = useState<ColorForm[]>([{ color: '', stock: '1' }])
 
   const cargarIphones = useCallback(async () => {
     setError('')
@@ -100,21 +194,35 @@ export default function CatalogoIphones() {
     if (!termino) return true
     return (
       phone.modelo?.toLowerCase().includes(termino) ||
-      phone.color?.toLowerCase().includes(termino) ||
-      phone.almacenamiento?.toLowerCase().includes(termino)
+      phone.almacenamiento?.toLowerCase().includes(termino) ||
+      phone.variantes.some(c => c.color.toLowerCase().includes(termino))
     )
   })
 
   const limpiarFormulario = () => {
     setModelo('')
     setAlmacenamiento('')
-    setColor('')
     setPrecioBase('')
-    setStock('1')
+    setColoresForm([{ color: '', stock: '1' }])
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    const colores = coloresForm
+      .map(c => ({ color: c.color.trim(), stock: parseInt(c.stock) || 0 }))
+      .filter(c => c.color)
+
+    if (colores.length === 0) {
+      toast.error('Agregá al menos un color')
+      return
+    }
+    const nombres = colores.map(c => c.color.toLowerCase())
+    if (new Set(nombres).size !== nombres.length) {
+      toast.error('Hay colores repetidos')
+      return
+    }
+
     setIsSaving(true)
     try {
       const res = await fetch('/api/iphones', {
@@ -122,10 +230,9 @@ export default function CatalogoIphones() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           modelo,
-          color,
           almacenamiento,
           precioBase: parseFloat(precioBase),
-          stock: parseInt(stock),
+          variantes: colores,
         }),
       })
       const data = (await res.json()) as { error?: string }
@@ -144,15 +251,39 @@ export default function CatalogoIphones() {
   const abrirEdicion = (phone: iPhone) => {
     setEditandoId(phone.id)
     setEditPrecio(String(phone.precioBase))
-    setEditStock(String(phone.stock))
+    setEditVariantes(
+      phone.variantes.map(variante => ({
+        id: variante.id,
+        color: variante.color,
+        stock: String(variante.stock),
+      })),
+    )
   }
 
-  const guardarEdicion = async (id: string) => {
+  const guardarEdicion = async (phone: iPhone) => {
+    const variantes = editVariantes
+      .map(c => ({ id: c.id, color: c.color.trim(), stock: parseInt(c.stock) || 0 }))
+      .filter(c => c.color)
+
+    if (variantes.length === 0) {
+      toast.error('Agregá al menos un color')
+      return
+    }
+    const nombres = variantes.map(c => c.color.toLowerCase())
+    if (new Set(nombres).size !== nombres.length) {
+      toast.error('Hay colores repetidos')
+      return
+    }
+
     try {
       const res = await fetch('/api/iphones', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, precioBase: editPrecio, stock: editStock }),
+        body: JSON.stringify({
+          id: phone.id,
+          precioBase: Number(editPrecio),
+          variantes,
+        }),
       })
       const data = (await res.json()) as { error?: string }
       if (!res.ok) throw new Error(data.error || 'No se pudo guardar el cambio')
@@ -164,8 +295,31 @@ export default function CatalogoIphones() {
     }
   }
 
+  const grupos = [...iphonesFiltrados.reduce((mapa, phone) => {
+    const key = `${phone.modelo}||${phone.almacenamiento}`
+    const grupo = mapa.get(key) ?? {
+      key,
+      modelo: phone.modelo,
+      almacenamiento: phone.almacenamiento,
+      phones: [] as iPhone[],
+      variantes: [] as VarianteStock[],
+      stockTotal: 0,
+    }
+    grupo.phones.push(phone)
+    grupo.variantes.push(...phone.variantes)
+    grupo.stockTotal += stockTotal(phone)
+    mapa.set(key, grupo)
+    return mapa
+  }, new Map<string, { key: string; modelo: string; almacenamiento: string; phones: iPhone[]; variantes: VarianteStock[]; stockTotal: number }>()).values()]
+
   return (
     <div>
+      <datalist id="colores-comunes">
+        {COLORES_COMUNES.map(c => (
+          <option key={c} value={c} />
+        ))}
+      </datalist>
+
       <header className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-lg font-bold text-white">Catálogo de iPhones</h2>
@@ -212,16 +366,6 @@ export default function CatalogoIphones() {
               className={inputClass}
             />
           </Field>
-          <Field label="Color" required>
-            <input
-              required
-              type="text"
-              value={color}
-              onChange={e => setColor(e.target.value)}
-              placeholder="Medianoche"
-              className={inputClass}
-            />
-          </Field>
           <Field label="Precio base (ARS)" required>
             <input
               required
@@ -234,17 +378,12 @@ export default function CatalogoIphones() {
               className={inputClass}
             />
           </Field>
-          <Field label="Stock inicial" required>
-            <input
-              required
-              type="number"
-              min="0"
-              value={stock}
-              onChange={e => setStock(e.target.value)}
-              className={inputClass}
-            />
-          </Field>
-          <div className="flex items-end">
+          <div className="sm:col-span-2">
+            <Field label="Colores y stock" required>
+              <ColorRows rows={coloresForm} onChange={setColoresForm} minRows={1} required />
+            </Field>
+          </div>
+          <div className="sm:col-span-2">
             <button
               disabled={isSaving}
               type="submit"
@@ -252,6 +391,9 @@ export default function CatalogoIphones() {
             >
               {isSaving ? 'Guardando...' : 'Guardar equipo'}
             </button>
+            <p className="mt-2 text-xs text-zinc-600">
+              Si ese modelo y almacenamiento ya existe, los colores se suman al equipo existente.
+            </p>
           </div>
         </form>
       )}
@@ -312,115 +454,126 @@ export default function CatalogoIphones() {
         </div>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
-          {iphonesFiltrados.map(phone => (
-            <div
-              key={phone.id}
-              className="rounded-2xl border border-zinc-800/70 bg-zinc-900/55 p-5 shadow-sm shadow-black/10 transition hover:border-zinc-700/80"
-            >
-              {editandoId === phone.id ? (
-                <div className="flex flex-col gap-3">
-                  <div>
-                    <h3 className="text-lg font-bold text-white">{phone.modelo}</h3>
-                    <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">
-                      {phone.almacenamiento} · {phone.color}
-                    </p>
-                  </div>
+          {grupos.map(grupo => {
+            const phoneEditando =
+              grupo.phones.find(phone => phone.id === editandoId) ?? grupo.phones[0]
 
-                  <div className="space-y-1.5">
-                    <label className="block text-[11px] font-semibold uppercase tracking-wider text-zinc-400">
-                      Precio ARS
-                    </label>
-                    <input
-                      type="number"
-                      value={editPrecio}
-                      onChange={e => setEditPrecio(e.target.value)}
-                      className={inputClass}
-                    />
-                  </div>
+            return (
+              <div
+                key={grupo.key}
+                className="rounded-2xl border border-zinc-800/70 bg-zinc-900/55 p-5 shadow-sm shadow-black/10 transition hover:border-zinc-700/80"
+              >
+                {editandoId === phoneEditando.id ? (
+                  <div className="flex flex-col gap-3">
+                    <div>
+                      <h3 className="text-lg font-bold text-white">{phoneEditando.modelo}</h3>
+                      <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">
+                        {phoneEditando.almacenamiento}
+                      </p>
+                    </div>
 
-                  <div className="space-y-1.5">
-                    <label className="block text-[11px] font-semibold uppercase tracking-wider text-zinc-400">
-                      Stock · actual {phone.stock}
-                    </label>
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setEditStock(String(Math.max(0, parseInt(editStock || '0') - 1)))
-                        }
-                        className="flex h-9 w-9 items-center justify-center rounded-lg bg-zinc-800 text-lg font-bold text-white transition hover:bg-zinc-700"
-                      >
-                        −
-                      </button>
+                    <div className="space-y-1.5">
+                      <label className="block text-[11px] font-semibold uppercase tracking-wider text-zinc-400">
+                        Precio ARS
+                      </label>
                       <input
                         type="number"
-                        value={editStock}
-                        onChange={e =>
-                          setEditStock(String(Math.max(0, parseInt(e.target.value) || 0)))
-                        }
-                        className={`${inputClass} w-20 text-center`}
+                        value={editPrecio}
+                        onChange={e => setEditPrecio(e.target.value)}
+                        className={inputClass}
                       />
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="block text-[11px] font-semibold uppercase tracking-wider text-zinc-400">
+                        Variantes / Colores
+                      </label>
+                      <ColorRows
+                        rows={editVariantes}
+                        onChange={setEditVariantes}
+                        minRows={1}
+                        required
+                      />
+                    </div>
+
+                    <div className="flex gap-2 pt-1">
                       <button
                         type="button"
-                        onClick={() => setEditStock(String(parseInt(editStock || '0') + 1))}
-                        className="flex h-9 w-9 items-center justify-center rounded-lg bg-zinc-800 text-lg font-bold text-white transition hover:bg-zinc-700"
+                        onClick={() => void guardarEdicion(phoneEditando)}
+                        className="flex-1 rounded-lg bg-blue-600 py-2 text-xs font-bold text-white transition hover:bg-blue-500"
                       >
-                        +
+                        Guardar
                       </button>
-                      <span className="text-xs text-zinc-500">unidades</span>
+                      <button
+                        type="button"
+                        onClick={() => setEditandoId(null)}
+                        className="flex-1 rounded-lg bg-zinc-800 py-2 text-xs font-bold text-zinc-300 transition hover:bg-zinc-700"
+                      >
+                        Cancelar
+                      </button>
                     </div>
                   </div>
-
-                  <div className="flex gap-2 pt-1">
-                    <button
-                      type="button"
-                      onClick={() => void guardarEdicion(phone.id)}
-                      className="flex-1 rounded-lg bg-blue-600 py-2 text-xs font-bold text-white transition hover:bg-blue-500"
-                    >
-                      Guardar
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setEditandoId(null)}
-                      className="flex-1 rounded-lg bg-zinc-800 py-2 text-xs font-bold text-zinc-300 transition hover:bg-zinc-700"
-                    >
-                      Cancelar
-                    </button>
+                ) : (
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0">
+                      <h3 className="truncate text-lg font-bold text-white">
+                        {grupo.modelo} - {grupo.almacenamiento}
+                      </h3>
+                      <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">
+                        {grupo.phones.length === 1
+                          ? formatARS(Number(phoneEditando.precioBase))
+                          : `${grupo.phones.length} publicaciones`}
+                      </p>
+                      <p className="mt-3 font-mono text-base font-bold text-emerald-300">
+                        {formatARS(Number(phoneEditando.precioBase))}
+                      </p>
+                      <div className="mt-3 flex flex-wrap gap-1.5">
+                        {grupo.variantes.length === 0 ? (
+                          <span className="text-xs text-zinc-600">Sin colores cargados</span>
+                        ) : (
+                          grupo.variantes.map(variante => (
+                            <span
+                              key={variante.id}
+                              className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${
+                                variante.stock > 0
+                                  ? 'border-zinc-700 bg-zinc-800/60 text-zinc-200'
+                                  : 'border-red-500/20 bg-red-500/10 text-red-300'
+                              }`}
+                            >
+                              {variante.color} · {variante.stock}
+                            </span>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex shrink-0 flex-col items-end gap-2">
+                      <span
+                        className={`rounded-full border px-2.5 py-1 text-[11px] font-bold ${
+                          grupo.stockTotal > 0
+                            ? 'border-blue-500/20 bg-blue-500/10 text-blue-300'
+                            : 'border-red-500/20 bg-red-500/10 text-red-300'
+                        }`}
+                      >
+                        {grupo.stockTotal > 0 ? `Stock: ${grupo.stockTotal}` : 'Agotado'}
+                      </span>
+                      {grupo.phones.map(phone => (
+                        <button
+                          key={phone.id}
+                          type="button"
+                          onClick={() => abrirEdicion(phone)}
+                          className="rounded-lg border border-zinc-800 px-2.5 py-1 text-[11px] font-semibold text-zinc-400 transition hover:border-zinc-600 hover:text-white"
+                        >
+                          {grupo.phones.length > 1 && phone.variante
+                            ? `Editar ${phone.variante}`
+                            : 'Editar'}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              ) : (
-                <div className="flex items-start justify-between gap-4">
-                  <div className="min-w-0">
-                    <h3 className="truncate text-lg font-bold text-white">{phone.modelo}</h3>
-                    <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">
-                      {phone.almacenamiento} · {phone.color}
-                    </p>
-                    <p className="mt-3 font-mono text-base font-bold text-emerald-300">
-                      {formatARS(Number(phone.precioBase))}
-                    </p>
-                  </div>
-                  <div className="flex shrink-0 flex-col items-end gap-2">
-                    <span
-                      className={`rounded-full border px-2.5 py-1 text-[11px] font-bold ${
-                        phone.stock > 0
-                          ? 'border-blue-500/20 bg-blue-500/10 text-blue-300'
-                          : 'border-red-500/20 bg-red-500/10 text-red-300'
-                      }`}
-                    >
-                      {phone.stock > 0 ? `Stock: ${phone.stock}` : 'Agotado'}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => abrirEdicion(phone)}
-                      className="rounded-lg border border-zinc-800 px-2.5 py-1 text-[11px] font-semibold text-zinc-400 transition hover:border-zinc-600 hover:text-white"
-                    >
-                      Editar
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          ))}
+                )}
+              </div>
+            )
+          })}
         </div>
       )}
     </div>

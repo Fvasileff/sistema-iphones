@@ -196,22 +196,27 @@ async function crearDemo() {
     data: {
       modelo: 'DEMO iPhone 13',
       variante: 'Demo',
-      color: 'Negro',
       almacenamiento: '128 GB',
       precioBase: 950000,
-      stock: 5,
       activo: true,
+      variantes: {
+        create: [
+          { color: 'Negro', stock: 3 },
+          { color: 'Blanco', stock: 2 },
+        ],
+      },
     },
   })
 
   await prisma.iPhone.create({
     data: {
       modelo: 'DEMO iPhone 14 Pro',
-      color: 'Blanco',
       almacenamiento: '256 GB',
       precioBase: 1450000,
-      stock: 3,
       activo: true,
+      variantes: {
+        create: [{ color: 'Blanco', stock: 3 }],
+      },
     },
   })
 

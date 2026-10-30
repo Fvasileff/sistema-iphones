@@ -28,7 +28,7 @@ export async function GET(
         where: { id },
         include: {
           cliente: true,
-          items: { include: { producto: true, iphone: true } },
+          items: { include: { producto: true, iphone: true, iphoneVariant: true } },
         },
       })
       if (!detalle) throw new ErrorApi('Venta no encontrada', 404)
@@ -64,6 +64,7 @@ export async function GET(
                 include: {
                   cliente: true,
                   iphone: true,
+                  iphoneVariant: true,
                 },
               },
             },

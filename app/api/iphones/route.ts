@@ -1,18 +1,26 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
+import { manejarErrorApi } from '@/lib/errores'
+import { iphoneCreateSchema, iphoneUpdateSchema } from '@/lib/validaciones/iphones'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET() {
   try {
     const iphones = await prisma.iPhone.findMany({
-      orderBy: { modelo: 'asc' }
+      include: { variantes: { orderBy: { color: 'asc' } } },
+      orderBy: [{ modelo: 'asc' }, { almacenamiento: 'asc' }],
     })
-    return NextResponse.json(iphones)
+
+    return NextResponse.json(
+      iphones.map(iphone => ({
+        ...iphone,
+        stockTotal: iphone.variantes.reduce((total, variante) => total + variante.stock, 0),
+      })),
+    )
   } catch (error) {
-    console.error('Error en GET /api/iphones:', error)
-    return NextResponse.json({ error: 'Error al obtener el catálogo' }, { status: 500 })
+    return manejarErrorApi(error)
   }
 }
 
@@ -21,27 +29,61 @@ export async function POST(request: Request) {
     const session = await auth()
     if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
-    const body = await request.json()
-    const { modelo, color, almacenamiento, precioBase, stock } = body
+    const data = iphoneCreateSchema.parse(await request.json())
 
-    if (!modelo || !color || !almacenamiento || !precioBase) {
-      return NextResponse.json({ error: 'Faltan campos obligatorios' }, { status: 400 })
-    }
-
-    const nuevoIphone = await prisma.iPhone.create({
-      data: {
-        modelo,
-        color,
-        almacenamiento,
-        precioBase: parseFloat(precioBase),
-        stock: parseInt(stock || 1)
-      }
+    const existente = await prisma.iPhone.findFirst({
+      where: {
+        modelo: data.modelo,
+        variante: data.variante,
+        almacenamiento: data.almacenamiento,
+      },
+      include: { variantes: true },
     })
 
-    return NextResponse.json(nuevoIphone, { status: 201 })
+    const nuevoIphone = existente
+      ? await prisma.$transaction(async tx => {
+          for (const item of data.variantes) {
+            const actual = existente.variantes.find(
+              color => color.color.toLowerCase() === item.color.toLowerCase(),
+            )
+
+            if (actual) {
+              await tx.iphoneVariant.update({
+                where: { id: actual.id },
+                data: { stock: { increment: item.stock } },
+              })
+            } else {
+              await tx.iphoneVariant.create({
+                data: { iphoneId: existente.id, color: item.color, stock: item.stock },
+              })
+            }
+          }
+
+          return tx.iPhone.update({
+            where: { id: existente.id },
+            data: { precioBase: data.precioBase },
+            include: { variantes: { orderBy: { color: 'asc' } } },
+          })
+        })
+      : await prisma.iPhone.create({
+          data: {
+            modelo: data.modelo,
+            variante: data.variante,
+            almacenamiento: data.almacenamiento,
+            precioBase: data.precioBase,
+            variantes: {
+              create: data.variantes.map(item => ({
+                color: item.color,
+                stock: item.stock,
+              })),
+            },
+          },
+          include: { variantes: { orderBy: { color: 'asc' } } },
+        })
+
+    return NextResponse.json(nuevoIphone, { status: existente ? 200 : 201 })
   } catch (error) {
-    console.error('Error en POST /api/iphones:', error)
-    return NextResponse.json({ error: 'Error al guardar el iPhone' }, { status: 500 })
+    return manejarErrorApi(error)
   }
 }
 
@@ -50,23 +92,58 @@ export async function PATCH(request: Request) {
     const session = await auth()
     if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
-    const body = await request.json()
-    const { id, precioBase, stock } = body
+    const data = iphoneUpdateSchema.parse(await request.json())
 
-    if (!id) return NextResponse.json({ error: 'Falta el id' }, { status: 400 })
+    const actualizado = await prisma.$transaction(async tx => {
+      if (data.variantes) {
+        const existentes = await tx.iphoneVariant.findMany({ where: { iphoneId: data.id } })
+        const idsConservados = new Set<string>()
 
-    const data: { precioBase?: number; stock?: number } = {}
-    if (precioBase !== undefined) data.precioBase = parseFloat(precioBase)
-    if (stock !== undefined) data.stock = parseInt(stock)
+        for (const item of data.variantes) {
+          if (item.id && existentes.some(color => color.id === item.id)) {
+            await tx.iphoneVariant.update({
+              where: { id: item.id },
+              data: { color: item.color, stock: item.stock },
+            })
+            idsConservados.add(item.id)
+            continue
+          }
 
-    const actualizado = await prisma.iPhone.update({
-      where: { id },
-      data
+          const porColor = existentes.find(
+            color => color.color.toLowerCase() === item.color.toLowerCase(),
+          )
+          if (porColor) {
+            await tx.iphoneVariant.update({
+              where: { id: porColor.id },
+              data: { stock: item.stock },
+            })
+            idsConservados.add(porColor.id)
+          } else {
+            const creada = await tx.iphoneVariant.create({
+              data: { iphoneId: data.id, color: item.color, stock: item.stock },
+            })
+            idsConservados.add(creada.id)
+          }
+        }
+
+        const idsEliminar = existentes
+          .filter(color => !idsConservados.has(color.id))
+          .map(color => color.id)
+
+        if (idsEliminar.length > 0) {
+          await tx.iphoneVariant.deleteMany({ where: { id: { in: idsEliminar } } })
+        }
+      }
+
+      return tx.iPhone.update({
+        where: { id: data.id },
+        data: data.precioBase !== undefined ? { precioBase: data.precioBase } : {},
+        include: { variantes: { orderBy: { color: 'asc' } } },
+      })
     })
 
     return NextResponse.json(actualizado)
   } catch (error) {
-    console.error('Error en PATCH /api/iphones:', error)
-    return NextResponse.json({ error: 'Error al actualizar' }, { status: 500 })
+    return manejarErrorApi(error)
   }
 }

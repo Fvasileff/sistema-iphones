@@ -54,7 +54,7 @@ export async function GET(req: Request) {
           fechaPago: { gte: inicio, lte: fin },
           venta: { anulada: false },
         },
-        include: { venta: { include: { cliente: true, iphone: true } } },
+        include: { venta: { include: { cliente: true, iphone: true, iphoneVariant: true } } },
       }),
       prisma.cuota.findMany({
         where: {
@@ -62,7 +62,7 @@ export async function GET(req: Request) {
           fechaVencimiento: { lt: ahora },
           venta: { anulada: false },
         },
-        include: { venta: { include: { cliente: true, iphone: true } } },
+        include: { venta: { include: { cliente: true, iphone: true, iphoneVariant: true } } },
       }),
       prisma.cuota.findMany({
         where: {
@@ -70,7 +70,7 @@ export async function GET(req: Request) {
           fechaVencimiento: { gte: ahora, lte: en7dias },
           venta: { anulada: false },
         },
-        include: { venta: { include: { cliente: true, iphone: true } } },
+        include: { venta: { include: { cliente: true, iphone: true, iphoneVariant: true } } },
         orderBy: { fechaVencimiento: 'asc' },
       }),
       prisma.venta.findMany({
@@ -78,7 +78,7 @@ export async function GET(req: Request) {
           fechaVenta: { gte: inicio, lte: fin },
           anulada: false,
         },
-        include: { cliente: true, iphone: true, cuotas: true },
+        include: { cliente: true, iphone: true, iphoneVariant: true, cuotas: true },
       }),
       prisma.ventaContado.aggregate({
         where: {

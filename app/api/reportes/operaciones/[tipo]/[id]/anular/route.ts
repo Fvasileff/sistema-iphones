@@ -46,7 +46,7 @@ export async function POST(
           },
           include: {
             cliente: true,
-            items: { include: { producto: true, iphone: true } },
+            items: { include: { producto: true, iphone: true, iphoneVariant: true } },
           },
         })
 
@@ -69,9 +69,9 @@ export async function POST(
             })
           }
 
-          if (item.iphoneId) {
-            await tx.iPhone.update({
-              where: { id: item.iphoneId },
+          if (item.iphoneId && item.colorId) {
+            await tx.iphoneVariant.update({
+              where: { id: item.colorId },
               data: { stock: { increment: item.cantidad } },
             })
           }
@@ -96,6 +96,7 @@ export async function POST(
           where: { id },
           include: {
             iphone: true,
+            iphoneVariant: true,
             cuotas: {
               include: {
                 pagos: { where: { anulada: false }, select: { id: true } },
@@ -128,14 +129,17 @@ export async function POST(
           include: {
             cliente: true,
             iphone: true,
+            iphoneVariant: true,
             cuotas: { orderBy: { numeroCuota: 'asc' } },
           },
         })
 
-        await tx.iPhone.update({
-          where: { id: actual.iphoneId },
-          data: { stock: { increment: 1 } },
-        })
+        if (actual.colorId) {
+          await tx.iphoneVariant.update({
+            where: { id: actual.colorId },
+            data: { stock: { increment: 1 } },
+          })
+        }
 
         if (Number(actual.anticipoEfectivo) > 0) {
           const movimientoCaja = await buscarMovimientoPorReferencia(tx, 'venta', actual.id)

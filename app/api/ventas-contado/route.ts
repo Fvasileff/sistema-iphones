@@ -13,6 +13,7 @@ export const dynamic = 'force-dynamic'
 interface ItemAgrupado {
   tipo: 'producto' | 'iphone'
   id: string
+  colorId?: string | null
   cantidad: number
   precioUnitario?: number
 }
@@ -45,7 +46,7 @@ export async function GET(request: Request) {
       where,
       include: {
         cliente: true,
-        items: { include: { producto: true, iphone: true } },
+        items: { include: { producto: true, iphone: true, iphoneVariant: true } },
       },
       orderBy: { fechaVenta: 'desc' },
       take,
@@ -66,11 +67,13 @@ export async function POST(request: Request) {
 
     const agrupados = new Map<string, ItemAgrupado>()
     for (const item of data.items) {
-      const clave = `${item.tipo}:${item.id}`
+      const colorId = item.tipo === 'iphone' ? item.colorId : null
+      const clave = `${item.tipo}:${item.id}:${colorId ?? ''}`
       const actual = agrupados.get(clave)
       agrupados.set(clave, {
         tipo: item.tipo,
         id: item.id,
+        colorId: colorId ?? actual?.colorId,
         cantidad: (actual?.cantidad ?? 0) + item.cantidad,
         precioUnitario: item.precioUnitario ?? actual?.precioUnitario,
       })
@@ -91,7 +94,10 @@ export async function POST(request: Request) {
           ? tx.producto.findMany({ where: { id: { in: productoIds } } })
           : Promise.resolve([]),
         iphoneIds.length > 0
-          ? tx.iPhone.findMany({ where: { id: { in: iphoneIds } } })
+          ? tx.iPhone.findMany({
+              where: { id: { in: iphoneIds } },
+              include: { variantes: true },
+            })
           : Promise.resolve([]),
       ])
 
@@ -116,6 +122,7 @@ export async function POST(request: Request) {
             tipo: item.tipo,
             productoId: producto.id,
             iphoneId: null,
+            colorId: null,
             nombre: producto.nombre,
             cantidad,
             precioUnitario,
@@ -126,9 +133,12 @@ export async function POST(request: Request) {
         const iphone = iphonesPorId.get(item.id)
         if (!iphone) throw new ErrorApi('iPhone no encontrado', 404)
         if (!iphone.activo) throw new ErrorApi('El iPhone está inactivo', 400)
-        if (iphone.stock < cantidad) {
+        if (!item.colorId) throw new ErrorApi('Seleccioná un color', 400)
+        const variante = iphone.variantes.find(color => color.id === item.colorId)
+        if (!variante) throw new ErrorApi('El color seleccionado no pertenece al iPhone', 400)
+        if (variante.stock < cantidad) {
           throw new ErrorApi(
-            `Stock insuficiente de ${iphone.modelo} ${iphone.almacenamiento}`,
+            `Stock insuficiente de ${iphone.modelo} ${iphone.almacenamiento} ${variante.color}`,
             409,
           )
         }
@@ -138,7 +148,8 @@ export async function POST(request: Request) {
           tipo: item.tipo,
           productoId: null,
           iphoneId: iphone.id,
-          nombre: `${iphone.modelo} ${iphone.almacenamiento}`,
+          colorId: variante.id,
+          nombre: `${iphone.modelo} ${iphone.almacenamiento} ${variante.color}`,
           cantidad,
           precioUnitario,
           subtotal: precioUnitario * cantidad,
@@ -165,11 +176,12 @@ export async function POST(request: Request) {
           }
         }
 
-        if (item.tipo === 'iphone' && item.iphoneId) {
-          const descuento = await tx.iPhone.updateMany({
+        if (item.tipo === 'iphone' && item.iphoneId && item.colorId) {
+          const descuento = await tx.iphoneVariant.updateMany({
             where: {
-              id: item.iphoneId,
-              activo: true,
+              id: item.colorId,
+              iphoneId: item.iphoneId,
+              iphone: { activo: true },
               stock: { gte: item.cantidad },
             },
             data: { stock: { decrement: item.cantidad } },
@@ -196,6 +208,7 @@ export async function POST(request: Request) {
             create: items.map(item => ({
               productoId: item.productoId,
               iphoneId: item.iphoneId,
+              colorId: item.colorId,
               cantidad: item.cantidad,
               precioUnitario: item.precioUnitario,
               subtotal: item.subtotal,
@@ -204,7 +217,7 @@ export async function POST(request: Request) {
         },
         include: {
           cliente: true,
-          items: { include: { producto: true, iphone: true } },
+          items: { include: { producto: true, iphone: true, iphoneVariant: true } },
         },
       })
 

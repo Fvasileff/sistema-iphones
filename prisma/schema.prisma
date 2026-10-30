@@ -17,16 +17,31 @@ model Usuario {
 }
 
 model iPhone {
-  id             String             @id @default(uuid())
+  id             String          @id @default(uuid())
   modelo         String
-  variante       String?
-  color          String
+  variante       String          @default("")
   almacenamiento String
   precioBase     Decimal
-  stock          Int                @default(1)
-  activo         Boolean            @default(true)
-  ventas         Venta[]
-  ventaItems     VentaContadoItem[]
+  activo         Boolean         @default(true)
+
+  variantes  IphoneVariant[]
+  ventas     Venta[]
+  ventaItems VentaContadoItem[]
+
+  @@unique([modelo, variante, almacenamiento])
+}
+
+model IphoneVariant {
+  id         String             @id @default(uuid())
+  iphone     iPhone             @relation(fields: [iphoneId], references: [id], onDelete: Cascade)
+  iphoneId   String
+  color      String
+  stock      Int                @default(0)
+  ventas     Venta[]
+  ventaItems VentaContadoItem[]
+
+  @@unique([iphoneId, color])
+  @@index([iphoneId])
 }
 
 model Cliente {
@@ -47,32 +62,35 @@ model Cliente {
 }
 
 model Venta {
-  id                String    @id @default(uuid())
-  cliente           Cliente   @relation("ClienteVentas", fields: [clienteId], references: [id])
+  id                String       @id @default(uuid())
+  cliente           Cliente      @relation("ClienteVentas", fields: [clienteId], references: [id])
   clienteId         String
-  iphone            iPhone    @relation(fields: [iphoneId], references: [id])
+  iphone            iPhone        @relation(fields: [iphoneId], references: [id])
   iphoneId          String
-  usuario           Usuario   @relation(fields: [usuarioId], references: [id])
+  iphoneVariant     IphoneVariant? @relation(fields: [colorId], references: [id])
+  colorId           String?
+  usuario           Usuario      @relation(fields: [usuarioId], references: [id])
   usuarioId         String
   precioVenta       Decimal
-  anticipoEfectivo  Decimal   @default(0)
-  metodoAnticipo    String    @default("efectivo") // efectivo | transferencia | tarjeta
-  anticipoEquipo    Decimal   @default(0)
+  anticipoEfectivo  Decimal      @default(0)
+  metodoAnticipo    String       @default("efectivo") // efectivo | transferencia | tarjeta
+  anticipoEquipo    Decimal      @default(0)
   descripcionEquipo String?
   planPago          String
   totalCuotas       Int
   montoCuota        Decimal
   interesPct        Decimal
-  estado            String    @default("activa")
-  fechaVenta        DateTime  @default(now())
-  codigoOperacion   String?   @unique
-  anulada           Boolean   @default(false)
+  estado            String       @default("activa")
+  fechaVenta        DateTime     @default(now())
+  codigoOperacion   String?      @unique
+  anulada           Boolean      @default(false)
   motivoAnulacion   String?
   fechaAnulacion    DateTime?
   cuotas            Cuota[]
 
   @@index([fechaVenta])
   @@index([clienteId])
+  @@index([colorId])
   @@index([anulada, fechaVenta])
 }
 
@@ -170,10 +188,12 @@ model VentaContadoItem {
   id             String       @id @default(uuid())
   venta          VentaContado @relation(fields: [ventaId], references: [id])
   ventaId        String
-  producto       Producto?    @relation(fields: [productoId], references: [id])
+  producto       Producto?      @relation(fields: [productoId], references: [id])
   productoId     String?
-  iphone         iPhone?      @relation(fields: [iphoneId], references: [id])
+  iphone         iPhone?        @relation(fields: [iphoneId], references: [id])
   iphoneId       String?
+  iphoneVariant  IphoneVariant? @relation(fields: [colorId], references: [id])
+  colorId        String?
   cantidad       Int
   precioUnitario Decimal
   subtotal       Decimal
@@ -181,6 +201,7 @@ model VentaContadoItem {
   @@index([ventaId])
   @@index([productoId])
   @@index([iphoneId])
+  @@index([colorId])
   @@map("VentaProductoItem")
 }
 
@@ -234,7 +255,7 @@ model HistorialReparacion {
 }
 
 model ReparacionProducto {
-  id              String    @id @default(uuid())
+  id              String     @id @default(uuid())
   reparacion      Reparacion @relation(fields: [reparacionId], references: [id])
   reparacionId    String
   producto        Producto   @relation(fields: [productoId], references: [id])
@@ -345,14 +366,14 @@ model Comprobante {
   cbteNro              Int?            // Asignado por ARCA al autorizar
   cae                  String?         // CAE otorgado por AFIP
   caeFchVto            String?         // Vencimiento del CAE (YYYYMMDD)
-  
+
   referenciaTipo       String?         // 'venta' | 'venta_contado' | 'reparacion' | etc.
   referenciaId         String?         // ID del registro asociado
 
   docTipo              Int             // 80: CUIT, 96: DNI, 99: Cons. Final, etc.
   docNro               String
   receptorNombre       String
-  condicionIvaReceptor String        // Responsable Inscripto, Monotributo, Consumidor Final, etc.
+  condicionIvaReceptor String          // Responsable Inscripto, Monotributo, Consumidor Final, etc.
 
   concepto             Int             @default(1) // 1: Productos, 2: Servicios, 3: Ambos
   fchServDesde         DateTime?

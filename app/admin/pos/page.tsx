@@ -36,15 +36,20 @@ interface Producto {
   activo: boolean
 }
 
+interface IphoneVariant {
+  id: string
+  color: string
+  stock: number
+}
+
 interface Iphone {
   id: string
   modelo: string
-  variante: string | null
-  color: string
+  variante: string
   almacenamiento: string
   precioBase: Monto
-  stock: number
   activo: boolean
+  variantes: IphoneVariant[]
 }
 
 interface VentaCreada {
@@ -55,6 +60,7 @@ interface VentaCreada {
 interface ItemCatalogo {
   tipo: 'producto' | 'iphone'
   id: string
+  colorId?: string
   nombre: string
   detalle: string
   etiqueta: string
@@ -101,8 +107,8 @@ function sumaEnCentavos(pagos: { monto: number }[]) {
   return pagos.reduce((acc, pago) => acc + Math.round(pago.monto * 100), 0)
 }
 
-function claveItem(item: { tipo: string; id: string }) {
-  return `${item.tipo}:${item.id}`
+function claveItem(item: { tipo: string; id: string; colorId?: string }) {
+  return `${item.tipo}:${item.id}:${item.colorId ?? ''}`
 }
 
 function nombreCliente(cliente: Cliente | null | undefined) {
@@ -241,15 +247,18 @@ function VentaUnificada({
       })),
     ...iphones
       .filter(iphone => iphone.activo)
-      .map(iphone => ({
-        tipo: 'iphone' as const,
-        id: iphone.id,
-        nombre: `${iphone.modelo}${iphone.variante ? ` ${iphone.variante}` : ''}`,
-        detalle: `${iphone.almacenamiento} · ${iphone.color}`,
-        etiqueta: 'iPhone',
-        precio: Number(iphone.precioBase),
-        stock: iphone.stock,
-      })),
+      .flatMap(iphone =>
+        iphone.variantes.map(variante => ({
+          tipo: 'iphone' as const,
+          id: iphone.id,
+          colorId: variante.id,
+          nombre: `${iphone.modelo}${iphone.variante ? ` ${iphone.variante}` : ''} ${variante.color}`,
+          detalle: `${iphone.almacenamiento} · ${variante.color}`,
+          etiqueta: 'iPhone',
+          precio: Number(iphone.precioBase),
+          stock: variante.stock,
+        })),
+      ),
   ]
 
   const texto = busqueda.trim().toLowerCase()
@@ -332,6 +341,7 @@ function VentaUnificada({
         items: carrito.map(item => ({
           tipo: item.tipo,
           id: item.id,
+          colorId: item.colorId,
           cantidad: item.cantidad,
           precioUnitario: item.precio,
         })),

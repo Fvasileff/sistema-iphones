@@ -265,12 +265,16 @@ async function sembrarDatos() {
   const iphone = await prisma.iPhone.create({
     data: {
       modelo: 'iPhone E2E',
-      color: 'Negro',
       almacenamiento: '128 GB',
       precioBase: 5000,
-      stock: 2,
       activo: true,
+      variantes: {
+        create: [{ color: 'Negro', stock: 2 }],
+      },
     },
+  })
+  const iphoneVariant = await prisma.iphoneVariant.findFirstOrThrow({
+    where: { iphoneId: iphone.id },
   })
 
   const cliente = await prisma.cliente.create({
@@ -284,7 +288,16 @@ async function sembrarDatos() {
   })
 
   console.log('  ✓ Datos base creados')
-  return { usuario, password, productoSimple, productoMixto, productoRepuesto, iphone, cliente }
+  return {
+    usuario,
+    password,
+    productoSimple,
+    productoMixto,
+    productoRepuesto,
+    iphone,
+    iphoneVariant,
+    cliente,
+  }
 }
 
 async function iniciarServidor() {
@@ -364,6 +377,7 @@ async function ejecutarFlujos() {
     productoMixto,
     productoRepuesto,
     iphone,
+    iphoneVariant,
     cliente,
   } = await sembrarDatos()
 
@@ -419,7 +433,7 @@ async function ejecutarFlujos() {
     clienteId: cliente.id,
     items: [
       { tipo: 'producto', id: productoMixto.id, cantidad: 1 },
-      { tipo: 'iphone', id: iphone.id, cantidad: 1 },
+      { tipo: 'iphone', id: iphone.id, colorId: iphoneVariant.id, cantidad: 1 },
     ],
     pagos: [
       { metodoPago: 'efectivo', monto: 3000 },
@@ -434,7 +448,7 @@ async function ejecutarFlujos() {
 
   const [stockMixto, stockIphone] = await Promise.all([
     prisma.producto.findUniqueOrThrow({ where: { id: productoMixto.id } }),
-    prisma.iPhone.findUniqueOrThrow({ where: { id: iphone.id } }),
+    prisma.iphoneVariant.findUniqueOrThrow({ where: { id: iphoneVariant.id } }),
   ])
   assert.equal(stockMixto.stock, 9, 'El stock del accesorio no se descontó')
   assert.equal(stockIphone.stock, 1, 'El stock del iPhone no se descontó')
@@ -455,6 +469,7 @@ async function ejecutarFlujos() {
   const financiacion = await api.post<ApiVentaFinanciada>('/api/ventas', {
     clienteId: cliente.id,
     iphoneId: iphone.id,
+    colorId: iphoneVariant.id,
     precioVenta: 10000,
     anticipoEfectivo: 2000,
     anticipoEquipo: 0,
@@ -472,7 +487,7 @@ async function ejecutarFlujos() {
       where: { id: financiacion.datos.id },
       include: { cuotas: { orderBy: { numeroCuota: 'asc' } } },
     }),
-    prisma.iPhone.findUniqueOrThrow({ where: { id: iphone.id } }),
+    prisma.iphoneVariant.findUniqueOrThrow({ where: { id: iphoneVariant.id } }),
   ])
   assert.equal(ventaFinanciadaDb.cuotas.length, 3, 'No se generaron las 3 cuotas')
   assert.equal(iphoneFinanciado.stock, 0, 'El stock del iPhone financiado no se descontó')

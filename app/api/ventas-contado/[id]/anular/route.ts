@@ -33,7 +33,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         },
         include: {
           cliente: true,
-          items: { include: { producto: true, iphone: true } },
+          items: { include: { producto: true, iphone: true, iphoneVariant: true } },
         },
       })
 
@@ -56,9 +56,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
           })
         }
 
-        if (item.iphoneId) {
-          await tx.iPhone.update({
-            where: { id: item.iphoneId },
+        if (item.iphoneId && item.colorId) {
+          await tx.iphoneVariant.update({
+            where: { id: item.colorId },
             data: { stock: { increment: item.cantidad } },
           })
         }

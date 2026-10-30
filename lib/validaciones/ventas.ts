@@ -2,12 +2,23 @@ import { z } from 'zod'
 import { METODOS_PAGO } from '@/lib/constantes'
 import { textoOpcional, textoOpcionalUpdate } from '@/lib/validaciones/comunes'
 
-export const ventaContadoItemSchema = z.object({
-  tipo: z.enum(['producto', 'iphone'], { message: 'Tipo de ítem inválido' }),
+const ventaContadoItemBase = {
   id: z.string().uuid('Ítem inválido'),
   cantidad: z.coerce.number().int().positive('La cantidad debe ser mayor a 0'),
   precioUnitario: z.coerce.number().min(0, 'El precio no puede ser negativo').optional(),
-})
+}
+
+export const ventaContadoItemSchema = z.discriminatedUnion('tipo', [
+  z.object({
+    tipo: z.literal('producto'),
+    ...ventaContadoItemBase,
+  }),
+  z.object({
+    tipo: z.literal('iphone'),
+    ...ventaContadoItemBase,
+    colorId: z.string({ error: 'Seleccioná un color' }).uuid('Seleccioná un color'),
+  }),
+])
 
 export const pagoDetalleSchema = z.object({
   metodoPago: z.enum(METODOS_PAGO),
@@ -28,6 +39,7 @@ export const ventaContadoSchema = z.object({
 export const ventaFinanciadaSchema = z.object({
   clienteId: z.string().uuid('Cliente inválido'),
   iphoneId: z.string().uuid('iPhone inválido'),
+  colorId: z.string({ error: 'Seleccioná un color' }).uuid('Seleccioná un color'),
   precioVenta: z.coerce.number().positive('El precio de venta debe ser mayor a 0'),
   anticipoEfectivo: z.coerce.number().min(0, 'El anticipo no puede ser negativo').default(0),
   anticipoEquipo: z.coerce.number().min(0, 'El valor del equipo no puede ser negativo').default(0),

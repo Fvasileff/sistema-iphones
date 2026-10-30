@@ -18,6 +18,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
         ventas: {
           include: {
             iphone: true,
+            iphoneVariant: true,
             cuotas: {
               include: {
                 pagos: { where: { anulada: false }, orderBy: { fecha: 'asc' } },
@@ -29,7 +30,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
         },
         ventasContado: {
           include: {
-            items: { include: { producto: true, iphone: true } },
+            items: { include: { producto: true, iphone: true, iphoneVariant: true } },
           },
           orderBy: { fechaVenta: 'desc' },
         },
