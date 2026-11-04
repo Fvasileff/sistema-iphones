@@ -5,6 +5,7 @@ import { registrarMovimientoCaja } from '@/lib/caja'
 import { ErrorApi, manejarErrorApi } from '@/lib/errores'
 import { parseFechaAR, sumarDiasAR } from '@/lib/fechas'
 import { generarCodigoOperacion } from '@/lib/operaciones'
+import { aCentavos } from '@/lib/pagos'
 import { ventaFinanciadaSchema } from '@/lib/validaciones/ventas'
 import { whatsappNuevaFinanciacion } from '@/utils/whatsapp'
 
@@ -36,6 +37,18 @@ export async function POST(request: Request) {
     }
 
     const dias = data.planPago === 'SEMANAL' ? 7 : data.planPago === 'QUINCENAL' ? 15 : 30
+
+    const saldoAFinanciar = data.precioVenta - data.anticipoEfectivo - data.anticipoEquipo
+    const totalConInteres = saldoAFinanciar * (1 + data.interesPct / 100)
+    const montoCuotaCanonico =
+      Math.round((totalConInteres / data.totalCuotas) * 100) / 100
+
+    if (Math.abs(aCentavos(data.montoCuota) - aCentavos(montoCuotaCanonico)) > 1) {
+      throw new ErrorApi(
+        `El valor de la cuota no coincide con el plan calculado (esperado ${montoCuotaCanonico.toFixed(2)})`,
+        400,
+      )
+    }
 
     const resultado = await prisma.$transaction(async tx => {
       const [cliente, iphone] = await Promise.all([
@@ -73,7 +86,7 @@ export async function POST(request: Request) {
           descripcionEquipo: data.descripcionEquipo,
           planPago: data.planPago,
           totalCuotas: data.totalCuotas,
-          montoCuota: data.montoCuota,
+          montoCuota: montoCuotaCanonico,
           interesPct: data.interesPct,
           codigoOperacion,
         },
@@ -83,11 +96,55 @@ export async function POST(request: Request) {
         data: Array.from({ length: data.totalCuotas }, (_, indice) => ({
           ventaId: nuevaVenta.id,
           numeroCuota: indice + 1,
-          montoOriginal: data.montoCuota,
+          montoOriginal: montoCuotaCanonico,
           fechaVencimiento: sumarDiasAR(fechaPrimeraCuota, indice * dias),
           estado: 'pendiente',
         })),
       })
+
+      if (data.anticipoEquipo > 0 && data.equipoPermuta) {
+        const equipo = data.equipoPermuta
+        const precioVentaEquipo = equipo.precioVentaEquipo ?? data.anticipoEquipo
+
+        const datosPermuta = {
+          nombre: `${equipo.modelo} ${equipo.capacidad} ${equipo.color} (usado/permuta)`,
+          descripcion: `Equipo recibido en permuta. Estado: ${equipo.estado}. IMEI: ${equipo.imei}. Venta origen: ${codigoOperacion}`,
+          categoria: 'accesorio',
+          condicion: 'permuta',
+          sku: equipo.imei,
+          precioCompra: data.anticipoEquipo,
+          precioVenta: precioVentaEquipo,
+          stock: 1,
+          stockMinimo: 0,
+          activo: true,
+          modelo: equipo.modelo,
+          capacidad: equipo.capacidad,
+          color: equipo.color,
+          imei: equipo.imei,
+          estadoEquipo: equipo.estado,
+          ventaOrigenId: nuevaVenta.id,
+        }
+
+        const existente = await tx.producto.findFirst({
+          where: { OR: [{ imei: equipo.imei }, { sku: equipo.imei }] },
+          select: { id: true },
+        })
+
+        const productoPermuta = existente
+          ? await tx.producto.update({ where: { id: existente.id }, data: datosPermuta })
+          : await tx.producto.create({ data: datosPermuta })
+
+        await tx.movimientoStock.create({
+          data: {
+            productoId: productoPermuta.id,
+            tipo: 'ingreso',
+            cantidad: 1,
+            motivo: `${existente ? 'Reactivación' : 'Alta'} de permuta ${codigoOperacion}`,
+            referenciaTipo: 'venta_financiada',
+            referenciaId: nuevaVenta.id,
+          },
+        })
+      }
 
       if (data.anticipoEfectivo > 0) {
         await registrarMovimientoCaja(tx, {

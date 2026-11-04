@@ -146,6 +146,12 @@ export default function RegistrarVentaPage() {
   const [metodoAnticipo, setMetodoAnticipo] = useState('efectivo')
   const [anticipoEquipo, setAnticipoEquipo] = useState('0')
   const [descripcionEquipo, setDescripcionEquipo] = useState('')
+  const [equipoModelo, setEquipoModelo] = useState('')
+  const [equipoCapacidad, setEquipoCapacidad] = useState('')
+  const [equipoColor, setEquipoColor] = useState('')
+  const [equipoImei, setEquipoImei] = useState('')
+  const [equipoEstado, setEquipoEstado] = useState('')
+  const [precioVentaEquipo, setPrecioVentaEquipo] = useState('')
   const [planPago, setPlanPago] = useState('SEMANAL')
   const [totalCuotas, setTotalCuotas] = useState(8)
   const [montoCuotaManual, setMontoCuotaManual] = useState('')
@@ -159,7 +165,9 @@ export default function RegistrarVentaPage() {
   const sinStock = varianteSeleccionada ? varianteSeleccionada.stock <= 0 : false
   const precio = parseFloat(precioVenta) || 0
   const anticipo = (parseFloat(anticipoEfectivo) || 0) + (parseFloat(anticipoEquipo) || 0)
+  const tienePermuta = (parseFloat(anticipoEquipo) || 0) > 0
   const saldo = precio - anticipo
+  const saldoNegativo = precio > 0 && saldo <= 0
   const interes = parseFloat(interesPct) || 0
   const montoCuotaCalculado =
     saldo > 0 && totalCuotas > 0
@@ -214,18 +222,41 @@ export default function RegistrarVentaPage() {
       toast.error('El color seleccionado no tiene stock disponible')
       return
     }
+    if (anticipo > precio) {
+      toast.error('Los anticipos no pueden superar el precio de venta')
+      return
+    }
+    if (precio - anticipo <= 0) {
+      toast.error('El saldo a financiar debe ser mayor a 0')
+      return
+    }
+    if (tienePermuta && (!equipoModelo.trim() || !equipoCapacidad.trim() || !equipoColor.trim() || !equipoImei.trim() || !equipoEstado.trim())) {
+      toast.error('Completá modelo, capacidad, color, IMEI y estado del equipo recibido')
+      return
+    }
     setCargando(true)
     try {
+      const equipoPermuta = tienePermuta
+        ? {
+            modelo: equipoModelo,
+            capacidad: equipoCapacidad,
+            color: equipoColor,
+            imei: equipoImei,
+            estado: equipoEstado,
+            precioVentaEquipo: precioVentaEquipo.trim() === '' ? undefined : Number(precioVentaEquipo),
+          }
+        : undefined
       const res = await fetch('/api/ventas', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clienteId, iphoneId, colorId, precioVenta, anticipoEfectivo, metodoAnticipo, anticipoEquipo, descripcionEquipo, planPago, totalCuotas, montoCuota, interesPct, fechaPrimeraCuota })
+        body: JSON.stringify({ clienteId, iphoneId, colorId, precioVenta, anticipoEfectivo, metodoAnticipo, anticipoEquipo, descripcionEquipo, equipoPermuta, planPago, totalCuotas, montoCuota, interesPct, fechaPrimeraCuota })
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Error al procesar la venta')
       toast.success('Financiación registrada y cuotas generadas con éxito.')
       setClienteId(''); setIphoneId(''); setColorId(''); setPrecioVenta('')
       setAnticipoEfectivo('0'); setMetodoAnticipo('efectivo'); setAnticipoEquipo('0'); setDescripcionEquipo('')
+      setEquipoModelo(''); setEquipoCapacidad(''); setEquipoColor(''); setEquipoImei(''); setEquipoEstado(''); setPrecioVentaEquipo('')
       setMontoCuotaManual(''); setInteresPct('0'); setFechaPrimeraCuota('')
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Error al procesar la venta')
@@ -291,6 +322,18 @@ export default function RegistrarVentaPage() {
               <input type="number" step="any" value={anticipoEquipo} onChange={e => setAnticipoEquipo(e.target.value)} className={inputClass} />
             </Field>
           </div>
+
+          <div className="space-y-1">
+            <p className={`text-sm font-semibold ${saldoNegativo ? 'text-red-400' : 'text-blue-300'}`}>
+              Saldo a financiar: {formatARS(saldo)}
+            </p>
+            {saldoNegativo && (
+              <p className="text-sm font-semibold text-red-400">
+                El anticipo y el equipo tomado igualan o superan el precio. No hay saldo para financiar.
+              </p>
+            )}
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Field label="Método del anticipo">
               <select value={metodoAnticipo} onChange={e => setMetodoAnticipo(e.target.value)} className={inputClass}>
@@ -303,6 +346,34 @@ export default function RegistrarVentaPage() {
               <input type="text" value={descripcionEquipo} onChange={e => setDescripcionEquipo(e.target.value)} placeholder="Ej: iPhone 13 negro 128GB" className={inputClass} />
             </Field>
           </div>
+
+          {tienePermuta && (
+            <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 space-y-4">
+              <p className="text-xs font-bold text-amber-300 uppercase tracking-widest">Equipo recibido en permuta</p>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <Field label="Modelo" required>
+                  <input type="text" value={equipoModelo} onChange={e => setEquipoModelo(e.target.value)} required placeholder="Ej: iPhone 12" className={inputClass} />
+                </Field>
+                <Field label="Capacidad" required>
+                  <input type="text" value={equipoCapacidad} onChange={e => setEquipoCapacidad(e.target.value)} required placeholder="Ej: 128GB" className={inputClass} />
+                </Field>
+                <Field label="Color" required>
+                  <input type="text" value={equipoColor} onChange={e => setEquipoColor(e.target.value)} required placeholder="Ej: Negro" className={inputClass} />
+                </Field>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <Field label="IMEI" required>
+                  <input type="text" value={equipoImei} onChange={e => setEquipoImei(e.target.value)} required placeholder="IMEI del equipo" className={inputClass} />
+                </Field>
+                <Field label="Estado" required>
+                  <input type="text" value={equipoEstado} onChange={e => setEquipoEstado(e.target.value)} required placeholder="Ej: 9/10, batería 85%" className={inputClass} />
+                </Field>
+                <Field label="Precio de venta del equipo (opcional)">
+                  <input type="number" step="any" min="0" value={precioVentaEquipo} onChange={e => setPrecioVentaEquipo(e.target.value)} placeholder="Igual al anticipo" className={inputClass} />
+                </Field>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="rounded-2xl border border-zinc-800/70 bg-zinc-900/60 p-5 space-y-4">
@@ -362,13 +433,19 @@ export default function RegistrarVentaPage() {
 
         <button
           type="submit"
-          disabled={cargando || sinStock}
+          disabled={cargando || sinStock || saldoNegativo}
           className={`w-full py-4 rounded-2xl font-bold text-base transition-all shadow-lg
-            ${cargando || sinStock
+            ${cargando || sinStock || saldoNegativo
               ? 'bg-zinc-700 text-zinc-500 cursor-not-allowed'
               : 'bg-blue-600 hover:bg-blue-500 active:scale-95 text-white'}`}
         >
-          {sinStock ? '⚠️ Sin Stock Disponible' : cargando ? 'Registrando...' : 'Confirmar y Generar Plan de Pagos'}
+          {sinStock
+            ? '⚠️ Sin Stock Disponible'
+            : saldoNegativo
+              ? '⚠️ Sin saldo para financiar'
+              : cargando
+                ? 'Registrando...'
+                : 'Confirmar y Generar Plan de Pagos'}
         </button>
 
       </form>

@@ -41,6 +41,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       const producto = await tx.producto.findUnique({ where: { id: data.productoId } })
       if (!producto) throw new ErrorApi('Producto no encontrado', 404)
       if (!producto.activo) throw new ErrorApi('El producto está inactivo', 400)
+      if (producto.condicion === 'permuta' || producto.ventaOrigenId) {
+        throw new ErrorApi('No se puede usar un equipo de permuta como repuesto', 400)
+      }
 
       const descuento = await tx.producto.updateMany({
         where: { id: producto.id, activo: true, stock: { gte: data.cantidad } },

@@ -97,6 +97,7 @@ export async function POST(
           include: {
             iphone: true,
             iphoneVariant: true,
+            productoPermuta: true,
             cuotas: {
               include: {
                 pagos: { where: { anulada: false }, select: { id: true } },
@@ -148,7 +149,27 @@ export async function POST(
           }
         }
 
-        return anulada
+        let advertencia: string | undefined
+        if (actual.productoPermuta) {
+          const ventaActiva = await tx.ventaContadoItem.findFirst({
+            where: {
+              productoId: actual.productoPermuta.id,
+              venta: { anulada: false },
+            },
+            select: { id: true },
+          })
+
+          if (ventaActiva) {
+            advertencia = `El equipo de permuta "${actual.productoPermuta.nombre}" ya fue vendido; se conserva en inventario.`
+          } else {
+            await tx.movimientoStock.deleteMany({
+              where: { productoId: actual.productoPermuta.id },
+            })
+            await tx.producto.delete({ where: { id: actual.productoPermuta.id } })
+          }
+        }
+
+        return { ...anulada, advertencia }
       })
 
       return NextResponse.json(venta)

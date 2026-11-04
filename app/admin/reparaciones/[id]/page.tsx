@@ -69,6 +69,8 @@ interface Producto {
   precioVenta: Monto
   stock: number
   activo: boolean
+  condicion: string | null
+  ventaOrigenId: string | null
 }
 
 interface Reparacion {
@@ -342,7 +344,9 @@ function ModalRepuesto({
   const [enviando, setEnviando] = useState(false)
   const [error, setError] = useState('')
 
-  const disponibles = productos.filter(p => p.activo && p.stock > 0)
+  const disponibles = productos.filter(
+    p => p.activo && p.stock > 0 && p.condicion !== 'permuta' && !p.ventaOrigenId,
+  )
   const producto = disponibles.find(p => p.id === productoId)
 
   const agregar = async (e: React.FormEvent) => {
