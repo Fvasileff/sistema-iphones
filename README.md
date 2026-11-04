@@ -1,36 +1,82 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Sistema iPhones
 
-## Getting Started
+Sistema de gestión para un negocio de iPhones: ventas financiadas y al contado, cobro de cuotas, reparaciones, inventario, caja diaria y reportes.
 
-First, run the development server:
+## Stack
+
+- Next.js 16 (App Router) + React 19
+- TypeScript
+- PostgreSQL (Supabase) + Prisma 7
+- NextAuth (Credentials)
+- Tailwind CSS 4
+- Twilio (WhatsApp) y Resend
+- Vercel + Axiom (logs)
+
+## Requisitos
+
+- Node.js 20.9 o superior (recomendado Node 22)
+- Una base PostgreSQL accesible (Supabase u otra)
+- Credenciales de Twilio si se van a enviar mensajes de WhatsApp
+
+## Instalación
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm ci
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Creá un archivo `.env` en la raíz con las variables de la sección siguiente.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+> `.env` está ignorado por git. Nunca commitees credenciales.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Variables de entorno
 
-## Learn More
+| Variable | Uso |
+| --- | --- |
+| `DATABASE_URL` | Conexión a PostgreSQL usada por la app (pooler en modo transacción). |
+| `DIRECT_URL` | Conexión directa (modo sesión), usada por Prisma CLI para migraciones. |
+| `NEXT_PUBLIC_SUPABASE_URL` | URL del proyecto Supabase. |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Clave anónima pública de Supabase. |
+| `SUPABASE_SECRET_KEY` | Clave secreta de Supabase (solo servidor). |
+| `NEXTAUTH_SECRET` | Secreto para firmar la sesión de NextAuth. |
+| `NEXTAUTH_URL` | URL pública de la app (ej. `https://tu-dominio.com`). |
+| `NEXT_PUBLIC_URL` | URL pública usada por la app. |
+| `TWILIO_ACCOUNT_SID` | SID de la cuenta de Twilio. |
+| `TWILIO_AUTH_TOKEN` | Token de autenticación de Twilio. |
+| `TWILIO_WHATSAPP_NUMBER` | Número de WhatsApp remitente (`whatsapp:+...`). |
+| `CRON_SECRET` | Token que protege el endpoint de recordatorios. |
 
-To learn more about Next.js, take a look at the following resources:
+## Comandos
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+| Comando | Descripción |
+| --- | --- |
+| `npm run dev` | Servidor de desarrollo en `http://localhost:3000`. |
+| `npm run build` | Genera el cliente Prisma y compila la app para producción. |
+| `npm run start` | Levanta el build de producción. |
+| `npm run lint` | Ejecuta ESLint. |
+| `npx tsc --noEmit` | Verificación de tipos sin emitir archivos. |
+| `npm run backfill:fase1` | Script de backfill de la Fase 1. |
+| `npm run test:e2e` | Build + script E2E (`prisma/scripts/e2e-unificado.ts`). |
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Base de datos y migraciones
 
-## Deploy on Vercel
+- El esquema vive en `prisma/schema.prisma` y las migraciones en `prisma/migrations/`.
+- Para generar el cliente: `npx prisma generate` (lo hace también `npm run build`).
+- En producción, las migraciones se aplican con:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```bash
+npx prisma migrate deploy
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+> **Importante:** nunca ejecutes `prisma migrate dev` contra la base de producción. Ese comando está pensado para desarrollo y puede reiniciar o borrar datos. Contra producción usá siempre `prisma migrate deploy`.
+
+## CI
+
+El workflow `.github/workflows/ci.yml` corre en cada push y pull request:
+
+- `npm run lint`
+- `npx tsc --noEmit`
+- `npm run build` (con variables de entorno ficticias, sin base de datos)
+
+## Healthcheck
+
+`GET /api/health` responde `{ "ok": true }` sin consultar la base de datos. Es una ruta pública y sirve para monitoreo.
