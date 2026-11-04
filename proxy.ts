@@ -6,8 +6,10 @@ export const proxy = auth(request => {
   const isLoggedIn = !!request.auth
 
   const esRutaAdmin = nextUrl.pathname.startsWith('/admin')
+  const esRutaApiPublica =
+    nextUrl.pathname.startsWith('/api/auth') || nextUrl.pathname.startsWith('/api/health')
   const esRutaApiProtegida =
-    nextUrl.pathname.startsWith('/api') && !nextUrl.pathname.startsWith('/api/auth')
+    nextUrl.pathname.startsWith('/api') && !esRutaApiPublica
 
   if ((esRutaAdmin || esRutaApiProtegida) && !isLoggedIn) {
     if (esRutaApiProtegida) {
@@ -22,6 +24,7 @@ export const proxy = auth(request => {
 export const config = {
   matcher: [
     '/admin/:path*',
+    '/api/health/:path*',
     '/api/iphones/:path*',
     '/api/clientes/:path*',
     '/api/productos/:path*',

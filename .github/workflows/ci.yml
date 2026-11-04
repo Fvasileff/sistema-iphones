@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+env:
+  DATABASE_URL: postgresql://postgres:postgres@localhost:5432/ci
+  DIRECT_URL: postgresql://postgres:postgres@localhost:5432/ci
+  NEXTAUTH_SECRET: ci-secret
+  NEXTAUTH_URL: http://localhost:3000
+  NEXT_PUBLIC_URL: http://localhost:3000
+  NEXT_PUBLIC_SUPABASE_URL: http://localhost:54321
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-anon-key
+  SUPABASE_SECRET_KEY: ci-secret-key
+  CRON_SECRET: ci-cron-secret
+  TWILIO_ACCOUNT_SID: AC00000000000000000000000000000000
+  TWILIO_AUTH_TOKEN: ci-token
+  TWILIO_WHATSAPP_NUMBER: "whatsapp:+10000000000"
+  NEXT_TELEMETRY_DISABLED: "1"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+      - run: npm run lint
+      - run: npx tsc --noEmit
+      - run: npm run build
