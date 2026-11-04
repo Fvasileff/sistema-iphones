@@ -7,7 +7,7 @@ import { parseFechaAR, sumarDiasAR } from '@/lib/fechas'
 import { generarCodigoOperacion } from '@/lib/operaciones'
 import { aCentavos } from '@/lib/pagos'
 import { ventaFinanciadaSchema } from '@/lib/validaciones/ventas'
-import { whatsappNuevaFinanciacion } from '@/utils/whatsapp'
+import { whatsappNuevaFinanciacion } from '@/lib/whatsapp'
 
 export const dynamic = 'force-dynamic'
 
