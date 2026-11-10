@@ -44,7 +44,6 @@ Creá un archivo `.env` en la raíz con las variables de la sección siguiente.
 | `TWILIO_AUTH_TOKEN` | Token de autenticación de Twilio. |
 | `TWILIO_WHATSAPP_NUMBER` | Número de WhatsApp remitente (`whatsapp:+...`). |
 | `CRON_SECRET` | Token que protege el endpoint de recordatorios. |
-| `NEXT_PUBLIC_SLOW_MODE` | `1` activa el modo lento global (10s de demora en acciones, login y fetches de cliente). Cualquier otro valor o ausente lo desactiva. |
 
 ## Comandos
 

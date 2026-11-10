@@ -4,15 +4,12 @@ import { useEffect, useState } from 'react'
 
 const DELAY_MS = 10000
 const GRACE_MS = 2000
-const SLOW_MODE = process.env.NEXT_PUBLIC_SLOW_MODE === '1'
 
 export default function DelayProvider({ children }: { children: React.ReactNode }) {
   const [activo, setActivo] = useState(false)
   const [restante, setRestante] = useState(Math.ceil(DELAY_MS / 1000))
 
   useEffect(() => {
-    if (!SLOW_MODE) return
-
     let gate: { promise: Promise<void>; resolver: () => void } | null = null
     let ultimoResuelto = 0
     let bypass = false
@@ -141,8 +138,6 @@ export default function DelayProvider({ children }: { children: React.ReactNode 
       if (temporizador) clearTimeout(temporizador)
     }
   }, [])
-
-  if (!SLOW_MODE) return <>{children}</>
 
   return (
     <>
